@@ -1,0 +1,28 @@
+{
+  "name": "affimark-backend",
+  "version": "1.0.0",
+  "description": "AffiMark Backend - Cloudflare Workers API",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "mcp": "node mcp-server.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@modelcontextprotocol/sdk": "^1.24.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "esbuild": "^0.19.12",
+    "exit-hook": "^5.0.1",
+    "hono": "^4.10.8",
+    "openai": "^4.28.0",
+    "undici": "^6.19.8",
+    "webidl-conversions": "^7.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.47.0"
+  }
+}

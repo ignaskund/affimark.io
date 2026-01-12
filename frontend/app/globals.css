@@ -1,0 +1,323 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Chocolate Truffle Theme */
+    --background: 30 38% 8%;
+    /* #38240D - Dark chocolate */
+    --foreground: 48 87% 91%;
+    /* #FDFBD4 - Cream */
+    --card: 30 42% 12%;
+    /* Slightly lighter than background */
+    --card-foreground: 48 87% 91%;
+    --popover: 30 42% 14%;
+    --popover-foreground: 48 87% 91%;
+    --primary: 27 100% 38%;
+    /* #C05800 - Orange/rust */
+    --primary-foreground: 48 87% 91%;
+    --secondary: 30 38% 16%;
+    --secondary-foreground: 48 87% 91%;
+    --muted: 30 38% 18%;
+    --muted-foreground: 32 30% 55%;
+    --accent: 28 100% 22%;
+    /* #713600 - Dark brown */
+    --accent-foreground: 48 87% 91%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 48 87% 91%;
+    --border: 30 30% 20%;
+    --input: 30 30% 20%;
+    --ring: 27 100% 38%;
+    --radius: 0.75rem;
+
+    /* AffiMark Chocolate Truffle Brand Colors */
+    --brand-chocolate: 28 100% 22%;
+    /* #713600 */
+    --brand-rust: 27 100% 38%;
+    /* #C05800 */
+    --brand-cream: 48 87% 91%;
+    /* #FDFBD4 */
+    --brand-espresso: 30 38% 8%;
+    /* #38240D */
+    --brand-success: 142 76% 36%;
+    --brand-warning: 38 92% 50%;
+    --brand-danger: 0 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-white/5 rounded-xl;
+  }
+
+  /* Gradient border effect */
+  .gradient-border {
+    position: relative;
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+  }
+
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: calc(var(--radius) + 1px);
+    background: linear-gradient(135deg, hsl(var(--brand-rust)), hsl(var(--brand-chocolate)));
+    z-index: -1;
+    opacity: 0.5;
+    transition: opacity 0.3s;
+  }
+
+  .gradient-border:hover::before {
+    opacity: 1;
+  }
+
+  /* Glowing input */
+  .glow-input {
+    @apply bg-secondary border border-border rounded-xl px-4 py-3 w-full focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-300;
+  }
+
+  .glow-input:focus {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.2);
+  }
+
+  /* Premium button styles - Chocolate Truffle */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-700 to-orange-600 text-white font-semibold rounded-xl hover:from-amber-600 hover:to-orange-500 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-300 transform hover:scale-[1.02] shadow-lg shadow-orange-900/30 hover:shadow-orange-800/50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-secondary text-foreground font-medium rounded-xl border border-border hover:bg-muted hover:border-muted-foreground/20 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all duration-200;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply glass-card p-6 hover:bg-card/90 transition-all duration-300;
+  }
+
+  /* Nav item - Chocolate Truffle */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200;
+  }
+
+  .nav-item-active {
+    @apply bg-gradient-to-r from-amber-800/30 to-orange-700/20 text-foreground border border-amber-700/40;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-warning {
+    @apply bg-orange-500/20 text-orange-400 border border-orange-500/30;
+  }
+
+  .badge-danger {
+    @apply bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-info {
+    @apply bg-amber-500/20 text-amber-400 border border-amber-500/30;
+  }
+}
+
+@layer utilities {
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  /* Glow effects - Chocolate Truffle */
+  .glow-sm {
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-md {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-lg {
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.3);
+  }
+
+  /* Gradient text - Chocolate Truffle */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-400;
+  }
+
+  /* Hide scrollbar */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.2);
+  }
+
+  to {
+    box-shadow: 0 0 25px hsl(var(--primary) / 0.4);
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY IMPROVEMENTS
+   ============================================ */
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-glow {
+    animation: none !important;
+  }
+}
+
+/* Enhanced focus states for keyboard navigation */
+@layer base {
+
+  /* Focus visible ring for interactive elements */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
+  /* Remove default focus styles when not keyboard navigating */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Skip link for accessibility */
+  .skip-link {
+    @apply absolute -top-10 left-0 bg-primary text-primary-foreground px-4 py-2 z-50 transition-all;
+  }
+
+  .skip-link:focus {
+    @apply top-0;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: 30 30% 40%;
+    --muted-foreground: 32 30% 70%;
+  }
+}
+
+/* Screen reader only - visually hidden but accessible */
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .not-sr-only {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}

@@ -1,0 +1,77 @@
+# AffiMark Backend Environment Variables
+# Copy this to .dev.vars and fill in your actual values
+
+# ==========================================
+# DATABASE (REQUIRED)
+# ==========================================
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your_service_role_key
+
+# ==========================================
+# AI SERVICE (REQUIRED - Phase 2+)
+# ==========================================
+# Get from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-api03-...
+
+# Alternative: OpenAI (choose one)
+# Get from: https://platform.openai.com/
+# OPENAI_API_KEY=sk-...
+
+# ==========================================
+# PRODUCT DATA (REQUIRED - Phase 2)
+# ==========================================
+
+# Rainforest API (Amazon products) - RECOMMENDED
+# Get from: https://www.rainforestapi.com/
+RAINFOREST_API_KEY=your_api_key
+
+# OR Amazon PA-API (harder to get, but free)
+# Get from: https://webservices.amazon.com/paapi5/
+# AWS_ACCESS_KEY_ID=your_access_key
+# AWS_SECRET_ACCESS_KEY=your_secret_key
+# AWS_REGION=us-east-1
+# AMAZON_ASSOCIATE_TAG=your_associate_tag
+
+# Shopify (store imports)
+# Get from: https://partners.shopify.com/
+SHOPIFY_APP_CLIENT_ID=your_client_id
+SHOPIFY_APP_CLIENT_SECRET=your_client_secret
+SHOPIFY_API_KEY=your_api_key
+
+# Gumroad (digital products)
+# Get from: https://app.gumroad.com/settings/advanced#application-form
+GUMROAD_ACCESS_TOKEN=your_access_token
+
+# ==========================================
+# AFFILIATE NETWORKS (OPTIONAL - Phase 2)
+# ==========================================
+
+# Impact.com (B&H Photo, Walmart, BestBuy, etc.)
+# IMPACT_ACCOUNT_SID=your_account_sid
+# IMPACT_AUTH_TOKEN=your_auth_token
+
+# ShareASale
+# SHAREASALE_API_TOKEN=your_token
+# SHAREASALE_API_SECRET=your_secret
+# SHAREASALE_AFFILIATE_ID=your_affiliate_id
+
+# ==========================================
+# PHASE 5 ONLY (Skip for now)
+# ==========================================
+
+# Social Platform OAuth (Phase 5)
+# YOUTUBE_CLIENT_ID=...
+# YOUTUBE_CLIENT_SECRET=...
+# YOUTUBE_API_KEY=...
+# TWITCH_CLIENT_ID=...
+# TWITCH_CLIENT_SECRET=...
+# TIKTOK_CLIENT_KEY=...
+# TIKTOK_CLIENT_SECRET=...
+# TWITTER_CLIENT_ID=...
+# TWITTER_CLIENT_SECRET=...
+# PINTEREST_APP_ID=...
+# PINTEREST_APP_SECRET=...
+
+# Transcription Services (Phase 5)
+# ASSEMBLYAI_API_KEY=...
+# DEEPGRAM_API_KEY=...
