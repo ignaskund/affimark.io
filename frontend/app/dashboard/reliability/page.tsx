@@ -1,4 +1,5 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import PlatformReliabilityDashboard from '@/components/reliability/PlatformReliabilityDashboard';
 
@@ -8,15 +9,14 @@ export const metadata = {
 };
 
 export default async function PlatformReliabilityPage() {
-  const supabase = await createServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
-    redirect('/login');
+    redirect('/sign-in');
   }
+
+  const supabase = supabaseServer;
 
   // Get reliability stats for last 30 days
   const { data: reliabilityStats, error } = await supabase

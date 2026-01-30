@@ -1,57 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { supabaseServer } from '@/lib/supabase-server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
-
-async function getUserFromRequest(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const prefix = 'bearer ';
-  const token = authHeader.toLowerCase().startsWith(prefix)
-    ? authHeader.slice(prefix.length)
-    : null;
-
-  if (!token) return null;
-
-  const { data, error } = await supabaseAuthClient.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
-}
-
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request);
-  const userId = user?.id;
+  try {
+    // Get NextAuth session
+    const session = await getServerSession(authOptions);
 
-  if (!userId) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
 
-  const { error } = await supabaseServer
-    .from('profiles')
-    .update({
-      onboarding_completed: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId);
+    const userId = (session.user as any).id;
 
-  if (error) {
-    console.error('[Onboarding Complete] Update error:', error);
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID not found' }, { status: 400 });
+    }
+
+    // First check if profile exists
+    const { data: existingProfile } = await supabaseServer
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (!existingProfile) {
+      // Create profile if it doesn't exist
+      console.log(`[Onboarding Complete] Profile doesn't exist, creating for user ${userId}`);
+      const userEmail = (session.user as any).email;
+      const userName = (session.user as any).name;
+
+      const { error: insertError } = await supabaseServer
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: userEmail,
+          full_name: userName || userEmail?.split('@')[0] || 'User',
+          user_type: 'creator',
+          onboarding_completed: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error('[Onboarding Complete] Insert error:', insertError);
+        return NextResponse.json(
+          { error: 'Failed to create profile', details: insertError.message },
+          { status: 500 }
+        );
+      }
+
+      console.log(`[Onboarding Complete] Profile created with onboarding_completed=true`);
+    } else {
+      // Update existing profile
+      const { error: updateError } = await supabaseServer
+        .from('profiles')
+        .update({
+          onboarding_completed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        console.error('[Onboarding Complete] Update error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to mark onboarding complete', details: updateError.message },
+          { status: 500 }
+        );
+      }
+
+      console.log(`[Onboarding Complete] Profile updated with onboarding_completed=true`);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('[Onboarding Complete] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'Failed to mark onboarding complete', details: error.message },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true });
 }
-
-

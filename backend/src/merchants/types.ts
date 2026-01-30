@@ -119,8 +119,9 @@ export interface MerchantEnv {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
 
-  // Amazon / Rainforest
+  // Amazon / Rainforest / Scrapingdog
   RAINFOREST_API_KEY?: string;
+  SCRAPINGDOG_API_KEY?: string;  // Alternative cheaper API
   AWS_ACCESS_KEY_ID?: string;
   AWS_SECRET_ACCESS_KEY?: string;
   AWS_REGION?: string;

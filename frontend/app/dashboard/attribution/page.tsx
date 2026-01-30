@@ -1,4 +1,5 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import AttributionDiagnostics from '@/components/attribution/AttributionDiagnostics';
 
@@ -8,15 +9,14 @@ export const metadata = {
 };
 
 export default async function AttributionPage() {
-  const supabase = await createServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
-    redirect('/login');
+    redirect('/sign-in');
   }
+
+  const supabase = supabaseServer;
 
   // Get user's SmartWrappers for testing
   const { data: smartwrappers } = await supabase

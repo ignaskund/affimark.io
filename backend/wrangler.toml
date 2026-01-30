@@ -1,13 +1,15 @@
-name = "affimark-api"
+name = "affimark-backend"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-[env.production]
-workers_dev = false
-routes = [
-  { pattern = "api.affimark.io/*", zone_name = "affimark.io" }
-]
+[vars]
+NODE_ENV = "development"
 
-[triggers]
-crons = ["0 2 * * *"]
+[dev]
+port = 8787
+local_protocol = "http"
+
+# Browser Rendering for Puppeteer-based scraping
+[browser]
+binding = "BROWSER"

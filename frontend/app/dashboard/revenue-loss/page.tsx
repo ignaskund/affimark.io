@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import RevenueLossLedger from '@/components/revenue-loss/RevenueLossLedger';
 import { ShieldCheck, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-react';
@@ -11,15 +12,14 @@ export const metadata = {
 };
 
 export default async function RevenueLossPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
     redirect('/sign-in');
   }
+
+  const supabase = supabaseServer;
 
   // Get revenue loss summary
   const { data: summary } = await supabase.rpc('get_revenue_loss_summary', {

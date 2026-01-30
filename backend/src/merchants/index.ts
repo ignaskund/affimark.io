@@ -6,11 +6,13 @@
 export * from './types';
 export * from './base-adapter';
 export * from './rainforest-adapter';
+export * from './amazon-hybrid-adapter';
 export * from './shopify-adapter';
 export * from './gumroad-adapter';
 
 import { BaseMerchantAdapter } from './base-adapter';
 import { RainforestAdapter } from './rainforest-adapter';
+import { AmazonHybridAdapter } from './amazon-hybrid-adapter';
 import { ShopifyAdapter } from './shopify-adapter';
 import { GumroadAdapter } from './gumroad-adapter';
 import { MerchantEnv } from './types';
@@ -33,7 +35,11 @@ export class AdapterFactory {
   ): BaseMerchantAdapter {
     switch (merchantKey.toLowerCase()) {
       case 'amazon':
+        // Uses custom scraper first, falls back to API if blocked
+        return new AmazonHybridAdapter(env);
+
       case 'rainforest':
+        // Explicit API-only adapter (for backwards compatibility)
         return new RainforestAdapter(env);
 
       case 'shopify':

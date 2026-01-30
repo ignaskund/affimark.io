@@ -1,11 +1,13 @@
-import { createClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import StorefrontsHeader from '@/components/storefronts/StorefrontsHeader';
 import ConnectedAccountsList from '@/components/storefronts/ConnectedAccountsList';
 import ConnectStorefrontButton from '@/components/storefronts/ConnectStorefrontButton';
-import { Store, CheckCircle2, Upload, TrendingUp, Globe, Sparkles } from 'lucide-react';
+import { Store, CheckCircle2, Upload, TrendingUp, Globe, Sparkles, Package, ExternalLink, ChevronRight } from 'lucide-react';
 import OAuthStatusBanner from './OAuthStatusBanner';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,18 +16,17 @@ interface PageProps {
 }
 
 export default async function StorefrontsPage({ searchParams }: PageProps) {
-  const supabase = await createClient();
+  const session = await auth();
+  const user = session?.user;
   const params = await searchParams;
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   if (!user) {
     redirect('/sign-in');
   }
 
-  // Fetch connected accounts
+  const supabase = supabaseServer;
+
+  // Fetch connected accounts (for earnings tracking)
   const { data: accounts } = await supabase
     .from('connected_accounts')
     .select('*')
@@ -34,6 +35,41 @@ export default async function StorefrontsPage({ searchParams }: PageProps) {
 
   const hasAccounts = accounts && accounts.length > 0;
   const activeAccounts = accounts?.filter(a => a.is_active).length || 0;
+
+  // Fetch imported storefronts (from Linktree/Beacons)
+  const { data: importedStorefronts } = await supabaseServer
+    .from('user_storefronts')
+    .select('id, platform, storefront_url, display_name, icon, sync_status, last_synced_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  // Get product counts for imported storefronts
+  const storefrontIds = (importedStorefronts || []).map(s => s.id);
+  let productCounts: Record<string, number> = {};
+  let storefrontProducts: Record<string, any[]> = {};
+
+  if (storefrontIds.length > 0) {
+    const { data: allProducts } = await supabaseServer
+      .from('user_storefront_products')
+      .select('storefront_id, title, image_url, current_price')
+      .in('storefront_id', storefrontIds)
+      .order('created_at', { ascending: false });
+
+    (allProducts || []).forEach(p => {
+      productCounts[p.storefront_id] = (productCounts[p.storefront_id] || 0) + 1;
+      if (!storefrontProducts[p.storefront_id]) {
+        storefrontProducts[p.storefront_id] = [];
+      }
+      if (storefrontProducts[p.storefront_id].length < 6) {
+        storefrontProducts[p.storefront_id].push({
+          title: p.title,
+          image_url: p.image_url,
+        });
+      }
+    });
+  }
+
+  const hasImportedStorefronts = importedStorefronts && importedStorefronts.length > 0;
 
   // Check for OAuth success/error messages
   const success = params.success as string | undefined;
@@ -114,12 +150,120 @@ export default async function StorefrontsPage({ searchParams }: PageProps) {
         </div>
       )}
 
+      {/* Imported Storefronts Section */}
+      {hasImportedStorefronts && (
+        <div className="animate-slide-up" style={{ animationDelay: '0.05s' }}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+              <Package className="w-5 h-5 text-indigo-400" />
+              Imported Storefronts
+            </h2>
+            <Link
+              href="/dashboard/products"
+              className="text-sm text-indigo-400 hover:text-indigo-300"
+            >
+              View all products
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {importedStorefronts?.map(storefront => (
+              <div key={storefront.id} className="glass-card p-5 hover:border-white/20 transition-all">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{storefront.icon || '🔗'}</span>
+                    <div>
+                      <h3 className="font-medium text-foreground">{storefront.display_name}</h3>
+                      <p className="text-xs text-muted-foreground capitalize">{storefront.platform}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={storefront.storefront_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                  </a>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                  <Package className="w-4 h-4" />
+                  <span>{productCounts[storefront.id] || 0} products</span>
+                </div>
+
+                {storefrontProducts[storefront.id]?.length > 0 && (
+                  <div className="flex gap-1.5 mb-3">
+                    {storefrontProducts[storefront.id].slice(0, 5).map((product, idx) => (
+                      <div
+                        key={idx}
+                        className="w-10 h-10 rounded bg-white/5 border border-white/10 overflow-hidden"
+                      >
+                        {product.image_url ? (
+                          <Image
+                            src={product.image_url}
+                            alt={product.title}
+                            width={40}
+                            height={40}
+                            className="object-cover w-full h-full"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {(productCounts[storefront.id] || 0) > 5 && (
+                      <div className="w-10 h-10 rounded bg-white/5 border border-white/10 flex items-center justify-center text-xs text-muted-foreground">
+                        +{productCounts[storefront.id] - 5}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Link
+                  href={`/dashboard/products?storefront_id=${storefront.id}`}
+                  className="flex items-center justify-between text-sm text-indigo-400 hover:text-indigo-300 pt-3 border-t border-white/10"
+                >
+                  View products
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Connected Accounts Section */}
       {hasAccounts ? (
         <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
+            Earnings Tracking
+          </h2>
           <ConnectedAccountsList accounts={accounts} />
         </div>
-      ) : (
+      ) : !hasImportedStorefronts && (
         <EmptyState />
+      )}
+
+      {/* Show empty state hint if no accounts but has imported storefronts */}
+      {!hasAccounts && hasImportedStorefronts && (
+        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.15s' }}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Track Your Earnings</h3>
+              <p className="text-sm text-muted-foreground">
+                Connect your affiliate platforms to track commissions and see unified earnings
+              </p>
+            </div>
+            <ConnectStorefrontButton variant="secondary" />
+          </div>
+        </div>
       )}
     </div>
   );

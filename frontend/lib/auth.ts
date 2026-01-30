@@ -1,27 +1,20 @@
-import { cookies } from 'next/headers';
-import { supabase } from './supabase-client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function auth() {
   try {
-    const cookieStore = await cookies();
-    const authCookie = cookieStore.get('sb-access-token');
-    
-    if (!authCookie) {
-      return null;
-    }
+    const session = await getServerSession(authOptions);
 
-    // Get user from Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(authCookie.value);
-    
-    if (error || !user) {
+    if (!session?.user) {
       return null;
     }
 
     return {
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.user_metadata?.name || user.email?.split('@')[0],
+        id: (session.user as any).id,
+        email: session.user.email,
+        name: session.user.name,
+        image: session.user.image,
       },
     };
   } catch (error) {

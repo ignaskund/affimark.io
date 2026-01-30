@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import SmartWrapperList from '@/components/smartwrappers/SmartWrapperList';
 import CreateSmartWrapperButton from '@/components/smartwrappers/CreateSmartWrapperButton';
@@ -7,15 +8,14 @@ import { Link2, Shield, MousePointer2, Zap, CheckCircle } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 
 export default async function SmartWrappersPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
     redirect('/sign-in');
   }
+
+  const supabase = supabaseServer;
 
   // Fetch SmartWrappers
   const { data: smartwrappers } = await supabase

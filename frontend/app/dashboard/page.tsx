@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server'; // Admin client
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import RevenueHeroWidget from '@/components/dashboard/RevenueHeroWidget';
 import QuickActionsGrid from '@/components/dashboard/QuickActionsGrid';
@@ -11,24 +12,27 @@ import { AlertCircle, CheckCircle2, ArrowRight, Clock, Sparkles } from 'lucide-r
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
     redirect('/sign-in');
   }
 
-  // Fetch user preferences for currency
-  const { data: userPreferences } = await supabase
-    .from('user_creator_preferences')
-    .select('home_currency')
-    .eq('user_id', user.id)
+  // Use Admin client directly since we are using NextAuth and trust the session
+  const supabase = supabaseServer;
+
+  // Fetch user profile to check onboarding status
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('user_type, onboarding_completed')
+    .eq('id', user.id)
     .single();
 
-  const currency = userPreferences?.home_currency || 'EUR';
+  // If onboarding not completed, redirect to magic onboarding
+  if (!profile?.onboarding_completed) {
+    redirect('/onboarding/magic');
+  }
 
   // Get date ranges
   const today = new Date();
@@ -38,36 +42,138 @@ export default async function DashboardPage() {
   const sixtyDaysAgo = new Date(today);
   sixtyDaysAgo.setDate(today.getDate() - 60);
 
-  // Fetch earnings data
-  const { data: currentPeriodEarnings } = await supabase.rpc('get_total_earnings', {
-    p_user_id: user.id,
-    p_start_date: thirtyDaysAgo.toISOString().split('T')[0],
-    p_end_date: today.toISOString().split('T')[0],
+  // Platform display configuration
+  const platformConfig: Record<string, { displayName: string; icon: string }> = {
+    amazon: { displayName: 'Amazon Storefront', icon: '🛍️' },
+    ltk: { displayName: 'LTK', icon: '💄' },
+    shopmy: { displayName: 'ShopMy', icon: '🛒' },
+    awin: { displayName: 'Awin', icon: '🔗' },
+  };
+
+  // Parallelize all independent database queries
+  const [
+    { data: userPreferences },
+    { data: currentPeriodEarnings },
+    { data: growthData },
+    { data: importedStorefronts },
+    { count: issuesCount },
+    { data: optimizationSuggestions, count: suggestionsCount },
+    { count: resolvedCount },
+    { count: accountsCount },
+    { count: storefrontCount }
+  ] = await Promise.all([
+    // Fetch user preferences for currency
+    supabase
+      .from('user_creator_preferences')
+      .select('home_currency')
+      .eq('user_id', user.id)
+      .single(),
+
+    // Fetch earnings data
+    supabase.rpc('get_total_earnings', {
+      p_user_id: user.id,
+      p_start_date: thirtyDaysAgo.toISOString().split('T')[0],
+      p_end_date: today.toISOString().split('T')[0],
+    }),
+
+    supabase.rpc('get_earnings_growth', {
+      p_user_id: user.id,
+    }),
+
+    // Fetch imported storefronts from user_storefronts table
+    supabase
+      .from('user_storefronts')
+      .select('id, platform, display_name, icon, storefront_url, sync_status, last_synced_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+
+    // Fetch open issues count
+    supabase
+      .from('link_health_issues')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'open'),
+
+    // Fetch pending optimization suggestions
+    supabase
+      .from('link_optimizations')
+      .select('potential_gain_low, potential_gain_high', { count: 'exact' })
+      .eq('user_id', user.id)
+      .eq('status', 'pending'),
+
+    // Fetch completed actions (revenue protected simulation)
+    supabase
+      .from('link_audit_actions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'completed')
+      .gte('completed_at', thirtyDaysAgo.toISOString()),
+
+    // Check connected accounts count (for earnings tracking)
+    supabase
+      .from('connected_accounts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_active', true),
+
+    // Check imported storefronts count
+    supabase
+      .from('user_storefronts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+  ]);
+
+  // Get product counts and top products for each storefront
+  const storefrontIds = (importedStorefronts || []).map(s => s.id);
+  let productCounts: Record<string, number> = {};
+  let storefrontProducts: Record<string, any[]> = {};
+
+  if (storefrontIds.length > 0) {
+    // Get all products for these storefronts
+    const { data: allProducts } = await supabase
+      .from('user_storefront_products')
+      .select('storefront_id, title, image_url, current_price')
+      .in('storefront_id', storefrontIds)
+      .order('created_at', { ascending: false });
+
+    // Group products by storefront
+    (allProducts || []).forEach(p => {
+      productCounts[p.storefront_id] = (productCounts[p.storefront_id] || 0) + 1;
+      if (!storefrontProducts[p.storefront_id]) {
+        storefrontProducts[p.storefront_id] = [];
+      }
+      if (storefrontProducts[p.storefront_id].length < 5) {
+        storefrontProducts[p.storefront_id].push({
+          title: p.title,
+          imageUrl: p.image_url,
+          price: p.current_price ? `€${p.current_price.toFixed(2)}` : null,
+        });
+      }
+    });
+  }
+
+  // Transform storefronts data for the component
+  const formattedStorefronts = (importedStorefronts || []).map(s => {
+    const config = platformConfig[s.platform] || {
+      displayName: s.display_name || s.platform,
+      icon: s.icon || '🔗'
+    };
+    return {
+      id: s.id,
+      platform: s.platform,
+      displayName: s.display_name || config.displayName,
+      icon: s.icon || config.icon,
+      storefrontUrl: s.storefront_url,
+      productCount: productCounts[s.id] || 0,
+      lastSynced: s.last_synced_at,
+      syncStatus: s.sync_status,
+      topProducts: storefrontProducts[s.id] || [],
+    };
   });
 
-  const { data: growthData } = await supabase.rpc('get_earnings_growth', {
-    p_user_id: user.id,
-  });
+  const totalProducts = Object.values(productCounts).reduce((sum, count) => sum + count, 0);
 
-  // Fetch storefronts
-  const { data: topStorefronts } = await supabase.rpc('get_top_storefronts', {
-    p_user_id: user.id,
-    p_limit: 5,
-  });
-
-  // Fetch open issues count
-  const { count: issuesCount } = await supabase
-    .from('link_health_issues')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('status', 'open');
-
-  // Fetch pending optimization suggestions
-  const { data: optimizationSuggestions, count: suggestionsCount } = await supabase
-    .from('link_optimizations')
-    .select('potential_gain_low, potential_gain_high', { count: 'exact' })
-    .eq('user_id', user.id)
-    .eq('status', 'pending');
+  const currency = userPreferences?.home_currency || 'EUR';
 
   // Calculate potential uplift
   const potentialUplift = optimizationSuggestions?.reduce(
@@ -75,28 +181,14 @@ export default async function DashboardPage() {
     0
   ) || 0;
 
-  // Fetch completed actions (revenue protected simulation)
-  const { count: resolvedCount } = await supabase
-    .from('link_audit_actions')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('status', 'completed')
-    .gte('completed_at', thirtyDaysAgo.toISOString());
-
   // Simulate revenue protected (in real app, sum from loss ledger)
   const revenueProtected = (resolvedCount || 0) * 42; // Average €42 per resolved issue
 
   const totalEarnings = currentPeriodEarnings?.[0]?.total_commission_eur || 0;
   const growthRate = growthData?.[0]?.growth_rate || 0;
 
-  // Check if new user (no connected accounts)
-  const { count: accountsCount } = await supabase
-    .from('connected_accounts')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('is_active', true);
-
-  const isNewUser = (accountsCount || 0) === 0;
+  // Check if new user (no connected accounts AND no imported storefronts)
+  const isNewUser = (accountsCount || 0) === 0 && (storefrontCount || 0) === 0;
 
   // New user welcome screen
   if (isNewUser) {
@@ -201,9 +293,8 @@ export default async function DashboardPage() {
         {/* Left Column - Storefronts */}
         <div className="lg:col-span-2">
           <StorefrontBreakdownCard
-            storefronts={topStorefronts || []}
-            totalEarnings={totalEarnings}
-            currency={currency}
+            storefronts={formattedStorefronts}
+            totalProducts={totalProducts}
           />
         </div>
 

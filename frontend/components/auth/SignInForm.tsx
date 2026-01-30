@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, Chrome, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Mail, Chrome, CheckCircle2, Eye, EyeOff, Coffee } from 'lucide-react';
 
 interface SignInFormProps {
   callbackUrl?: string;
@@ -44,7 +44,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
     setLoading(true);
     try {
       await signIn('google', {
-        callbackUrl: callbackUrl || '/chat',
+        callbackUrl: callbackUrl || searchParams?.get('callbackUrl') || '/dashboard',
         redirect: true,
       });
     } catch (error) {
@@ -63,7 +63,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
         email,
         password,
         redirect: false,
-        callbackUrl: callbackUrl || '/chat',
+        callbackUrl: callbackUrl || searchParams?.get('callbackUrl') || '/dashboard',
       });
 
       if (result?.error) {
@@ -89,7 +89,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
       const result = await signIn('email', {
         email,
         redirect: false,
-        callbackUrl: callbackUrl || '/chat',
+        callbackUrl: callbackUrl || '/dashboard',
       });
 
       if (result?.ok) {
@@ -108,15 +108,15 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
   if (emailSent) {
     return (
       <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 text-center">
-        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Mail className="w-8 h-8 text-green-400" />
+        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Mail className="w-8 h-8 text-emerald-400" />
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
         <p className="text-gray-400 mb-6">
           We've sent a magic link to <strong className="text-white">{email}</strong>
         </p>
         <p className="text-sm text-gray-500">
-          Click the link in your email to sign in to Affimark.
+          Click the link in your email to sign in to AffiMark.
         </p>
       </div>
     );
@@ -126,13 +126,16 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
     <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Welcome to Affimark</h1>
-        <p className="text-gray-400">Sign in to continue to your account</p>
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-amber-700 to-orange-600 mb-4">
+          <Coffee className="w-6 h-6 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
+        <p className="text-gray-400">Sign in to continue to AffiMark</p>
       </div>
 
       {/* Success Message */}
       {successMessage && (
-        <div className="mb-6 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm flex items-center gap-2">
+        <div className="mb-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm flex items-center gap-2">
           <CheckCircle2 size={18} />
           {successMessage}
         </div>
@@ -175,7 +178,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-600"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent"
           />
         </div>
 
@@ -191,7 +194,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="Enter your password"
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-600 pr-12"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent pr-12"
             />
             <button
               type="button"
@@ -212,7 +215,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
         <Button
           type="submit"
           disabled={loading || !email || !password}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3"
+          className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium py-3"
         >
           {loading ? (
             <>
@@ -231,7 +234,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
           Don't have an account?{' '}
           <Link
             href="/sign-up"
-            className="text-white hover:underline"
+            className="text-orange-400 hover:text-orange-300 font-medium"
           >
             Create Account
           </Link>
@@ -245,4 +248,3 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
     </div>
   );
 }
-

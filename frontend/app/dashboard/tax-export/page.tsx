@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase-server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import TaxExportForm from '@/components/tax-export/TaxExportForm';
 import TaxPersonasList from '@/components/tax-export/TaxPersonasList';
@@ -7,15 +8,14 @@ import { FileText, AlertTriangle, Calculator, Globe, Clock } from 'lucide-react'
 export const dynamic = 'force-dynamic';
 
 export default async function TaxExportPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const session = await auth();
+  const user = session?.user;
 
   if (!user) {
     redirect('/sign-in');
   }
+
+  const supabase = supabaseServer;
 
   // Fetch user preferences for selected persona
   const { data: userPreferences } = await supabase

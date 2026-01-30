@@ -34,7 +34,8 @@ export async function createClient() {
 // Legacy export for service role key (admin operations)
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY!;
+// Use SERVICE_ROLE_KEY (from .env.local) or SERVICE_KEY (from env.example), falling back to ANON_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabaseServer = createSupabaseClient(supabaseUrl, supabaseServiceKey, {
   auth: {

@@ -3,14 +3,14 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, ArrowRight } from 'lucide-react';
+import { Loader2, Mail, ArrowRight, Coffee } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
 
 function VerifyEmailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams?.get('email') || '';
-  
+
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ function VerifyEmailPageInner() {
         }
       });
       setCode(newCode);
-      
+
       // Focus last filled input
       const nextIndex = Math.min(index + pastedCode.length, 5);
       document.getElementById(`code-${nextIndex}`)?.focus();
@@ -57,7 +57,7 @@ function VerifyEmailPageInner() {
 
   const handleVerify = async () => {
     const verificationCode = code.join('');
-    
+
     if (verificationCode.length !== 6) {
       setError('Please enter the complete 6-digit code');
       return;
@@ -83,9 +83,11 @@ function VerifyEmailPageInner() {
         // Clear any stale session tokens created during initial sign-up
         await supabase.auth.signOut();
 
+        const callbackUrl = searchParams?.get('callbackUrl') || '/onboarding';
+
         // Redirect to sign-in with success message and send them to onboarding next
         router.push(
-          `/sign-in?verified=true&email=${encodeURIComponent(email)}&callbackUrl=/onboarding`
+          `/sign-in?verified=true&email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
         );
       } else {
         // Better error messages
@@ -135,13 +137,19 @@ function VerifyEmailPageInner() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      {/* Background effects */}
+      <div className="absolute inset-0 overflow-hidden -z-10">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-700/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl" />
+      </div>
+
       <div className="w-full max-w-md">
         <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-blue-400" />
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-700 to-orange-600 mb-4">
+              <Mail className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">Verify your email</h1>
             <p className="text-gray-400">
@@ -151,7 +159,7 @@ function VerifyEmailPageInner() {
           </div>
 
           {/* Success Message */}
-          <div id="success-message" className="hidden mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm text-center">
+          <div id="success-message" className="hidden mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm text-center">
             ✓ New code sent!
           </div>
 
@@ -171,7 +179,7 @@ function VerifyEmailPageInner() {
                   value={digit}
                   onChange={(e) => handleChange(index, e.target.value.replace(/\D/g, ''))}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-12 h-14 text-center text-2xl font-bold bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="w-12 h-14 text-center text-2xl font-bold bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-600 focus:border-transparent"
                 />
               ))}
             </div>
@@ -188,7 +196,7 @@ function VerifyEmailPageInner() {
           <Button
             onClick={handleVerify}
             disabled={loading || code.join('').length !== 6}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 mb-4"
+            className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-medium py-3 mb-4"
           >
             {loading ? (
               <>
@@ -209,7 +217,7 @@ function VerifyEmailPageInner() {
             <button
               onClick={handleResendCode}
               disabled={resending}
-              className="text-sm text-purple-400 hover:text-purple-300 font-medium disabled:opacity-50"
+              className="text-sm text-orange-400 hover:text-orange-300 font-medium disabled:opacity-50"
             >
               {resending ? 'Sending...' : 'Resend code'}
             </button>
@@ -234,7 +242,7 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="min-h-screen bg-background flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
         </div>
       }

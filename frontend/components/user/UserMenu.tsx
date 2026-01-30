@@ -2,18 +2,17 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
 export default function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
 
   const handleSignOut = async () => {
     try {
-      // Call sign out endpoint
+      // Clear any custom cookies first
       await fetch('/api/auth/sign-out', { method: 'POST' });
-      router.push('/');
-      router.refresh();
+      // Then use NextAuth signOut to properly clear session
+      await signOut({ callbackUrl: '/' });
     } catch (error) {
       console.error('Sign out error:', error);
     }
