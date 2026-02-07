@@ -46,13 +46,15 @@ export function CriticalAlertsBanner({
           <div className="flex flex-wrap gap-3 ml-11">
             <button
               onClick={onViewIssues}
-              className="px-6 py-2 bg-white text-red-600 font-semibold rounded-lg hover:bg-gray-100 transition-all shadow-md"
+              className="px-6 py-2 bg-white font-semibold rounded-lg hover:bg-gray-100 transition-all shadow-md"
+              style={{ color: 'var(--color-danger)' }}
             >
               View All Issues
             </button>
             <button
               onClick={onFixFirst}
-              className="px-6 py-2 bg-red-700 text-white font-semibold rounded-lg hover:bg-red-800 transition-all shadow-md"
+              className="px-6 py-2 text-white font-semibold rounded-lg transition-all shadow-md hover:opacity-90"
+              style={{ background: 'var(--color-danger)' }}
             >
               Fix First Issue
             </button>

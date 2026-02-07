@@ -49,7 +49,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide text-gray-500">
-              AffiMark OS
+              Affimark OS
             </p>
             <p className="text-sm font-semibold text-white">
               Creator Revenue Hub
@@ -70,11 +70,10 @@ export function AppShell({ children }: AppShellProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
                     ? 'bg-gray-900 text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
-                }`}
+                  }`}
               >
                 <Icon size={18} className={isActive ? 'text-purple-400' : 'text-gray-500'} />
                 <span>{item.label}</span>

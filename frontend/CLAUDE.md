@@ -1,4 +1,4 @@
-## AffiMark Frontend – Claude Code Guide (v2)
+## Affimark Frontend – Claude Code Guide (v2)
 
 Frontend: Next.js 15 (App Router) + TypeScript + Tailwind + Supabase + Stripe.
 
@@ -183,7 +183,7 @@ interface LossLedgerEntryProps {
 
 ### 4. Smart Link Optimizer (★ HERO FEATURE)
 
-**Purpose:** Find better-paying programs. This is why creators use AffiMark.
+**Purpose:** Find better-paying programs. This is why creators use Affimark.
 
 **Trust Messaging:** Show confidence ranges, last verified dates, disclaimers.
 

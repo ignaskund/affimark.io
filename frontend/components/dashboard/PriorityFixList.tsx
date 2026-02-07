@@ -128,7 +128,7 @@ export function PriorityFixList({
             <div key={issue.id} className="p-6 hover:bg-gray-50 transition-colors">
               {/* Priority Number */}
               <div className="flex items-start">
-                <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 text-white rounded-full flex items-center justify-center font-bold text-lg mr-4 shadow-md">
+                <div className="flex-shrink-0 w-10 h-10 text-white rounded-full flex items-center justify-center font-bold text-lg mr-4 shadow-md" style={{ background: 'linear-gradient(to bottom right, var(--color-brand), var(--color-brand-strong))' }}>
                   {index + 1}
                 </div>
 
@@ -151,7 +151,7 @@ export function PriorityFixList({
                       href={issue.link_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-indigo-600 hover:text-indigo-700 mb-2 inline-block"
+                      className="text-sm text-[var(--color-brand)] hover:text-[var(--color-brand-strong)] mb-2 inline-block"
                     >
                       {issue.link_url.length > 60
                         ? issue.link_url.substring(0, 60) + '...'
@@ -178,13 +178,12 @@ export function PriorityFixList({
                     </div>
 
                     {/* Severity Badge */}
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      issue.severity === 'critical'
-                        ? 'bg-red-100 text-red-700'
-                        : issue.severity === 'warning'
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${issue.severity === 'critical'
+                      ? 'bg-red-100 text-red-700'
+                      : issue.severity === 'warning'
                         ? 'bg-yellow-100 text-yellow-700'
                         : 'bg-blue-100 text-blue-700'
-                    }`}>
+                      }`}>
                       {issue.severity}
                     </span>
                   </div>
@@ -194,13 +193,14 @@ export function PriorityFixList({
                     <button
                       onClick={() => handleFix(issue)}
                       disabled={loading}
-                      className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all text-sm shadow-md disabled:opacity-50"
+                      className="px-4 py-2 text-white font-semibold rounded-lg transition-all text-sm shadow-md disabled:opacity-50 hover:opacity-90"
+                      style={{ background: 'var(--color-brand)' }}
                     >
                       {loading ? 'Loading...' : 'Fix Now'}
                     </button>
                     <button
                       onClick={() => handleSnooze(issue.id)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-all text-sm"
+                      className="px-4 py-2 bg-[var(--color-surface-2)] text-[var(--color-text)] font-semibold rounded-lg hover:bg-[var(--color-border)] transition-all text-sm"
                     >
                       Snooze
                     </button>

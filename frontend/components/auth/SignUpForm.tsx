@@ -110,7 +110,7 @@ export default function SignUpForm({ callbackUrl }: SignUpFormProps) {
                 </div>
                 <h1 className="text-3xl font-bold text-white mb-2">Create your account</h1>
                 <p className="text-gray-400">
-                    Join AffiMark and protect your affiliate revenue
+                    Join Affimark and protect your affiliate revenue
                 </p>
             </div>
 

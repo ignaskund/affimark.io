@@ -1,0 +1,103 @@
+export const tokens = {
+    colors: {
+        bg: "#ffffff",
+        surface: "#ffffff",
+        surface2: "#fafafa",
+        border: "#d1d5db",
+        divider: "#d4d4d4bc",
+        text: "#111111",
+        textMuted: "#6b7280",
+        textFaint: "#9ca3af",
+
+        brand: "#f3a89a",
+        brandStrong: "#f08c7a",
+        brandSoft: "#fef5f3",
+
+        success: "#16a34a",
+        successSoft: "#ecfdf3",
+        warning: "#f59e0b",
+        warningSoft: "#fffbeb",
+        danger: "#dc2626",
+        dangerSoft: "#fef2f2",
+        info: "#2563eb",
+        infoSoft: "#eff6ff",
+    },
+    typography: {
+        fontFamily: {
+            sans:
+                'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans"',
+        },
+        fontSize: {
+            11: "11px",
+            12: "12px",
+            14: "14px",
+            15: "15px",
+            16: "16px",
+            18: "18px",
+            20: "20px",
+            28: "28px",
+            32: "32px",
+        },
+        lineHeight: {
+            tight: 1.2,
+            snug: 1.3,
+            normal: 1.5,
+            small: 1.4,
+        },
+        fontWeight: {
+            regular: 400,
+            medium: 500,
+            semibold: 600,
+            bold: 700,
+        },
+    },
+    spacing: {
+        0: "0px",
+        1: "4px",
+        2: "8px",
+        3: "12px",
+        4: "16px",
+        5: "20px",
+        6: "24px",
+        7: "28px",
+        8: "32px",
+        10: "40px",
+        12: "48px",
+    },
+    radii: {
+        6: "6px",
+        8: "8px",
+        10: "10px",
+        12: "12px",
+        16: "16px",
+    },
+    sizes: {
+        controlH40: "40px",
+        controlH44: "44px",
+        sidebarW: "240px",
+        rightRailW: "280px",
+        contentMax: "1280px",
+    },
+    shadows: {
+        none: "none",
+        sm: "0 1px 2px rgba(0, 0, 0, 0.05)",
+        md: "0 4px 6px rgba(0, 0, 0, 0.1)",
+        lg: "0 10px 15px rgba(0, 0, 0, 0.1)",
+        xl: "0 20px 25px rgba(0, 0, 0, 0.15)",
+    },
+    transitions: {
+        fast: "150ms ease",
+        base: "200ms ease",
+        slow: "300ms ease",
+    },
+    zIndex: {
+        base: 0,
+        dropdown: 1000,
+        sticky: 1100,
+        modal: 1200,
+        popover: 1300,
+        tooltip: 1400,
+    },
+} as const;
+
+export type Tokens = typeof tokens;

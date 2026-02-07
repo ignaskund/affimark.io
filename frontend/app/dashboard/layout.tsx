@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
@@ -65,39 +66,39 @@ export default function DashboardLayout({
             {/* Sidebar for Desktop */}
             <aside className="hidden lg:flex flex-col w-72 bg-card border-r border-border fixed h-full z-10">
                 {/* Logo */}
-                <div className="p-6 border-b border-border">
-                    <Link href="/dashboard" className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-900/30">
-                            <Coffee className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <span className="font-bold text-lg text-foreground">AffiMark</span>
-                            <p className="text-xs text-muted-foreground">Creator Revenue Hub</p>
-                        </div>
+                <div className="px-6 py-4">
+                    <Link href="/dashboard" className="flex items-center">
+                        <Image
+                            src="/Affimark 400.webp"
+                            alt="Affimark"
+                            width={50}
+                            height={17}
+                            className="object-contain"
+                        />
                     </Link>
                 </div>
 
                 {/* Navigation Groups */}
-                <nav className="flex-1 px-4 py-6 space-y-8 overflow-y-auto hide-scrollbar">
+                <nav className="flex-1 px-4 py-3 space-y-6 overflow-y-auto hide-scrollbar">
                     {navigationGroups.map((group) => (
                         <div key={group.label}>
-                            <p className="px-4 mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            <p className="px-4 mb-3 text-xs font-normal text-muted-foreground tracking-wider">
                                 {group.label}
                             </p>
-                            <div className="space-y-1">
+                            <div className="space-y-1.5 pl-4">
                                 {group.items.map((item) => {
                                     const active = isActive(item.href);
                                     return (
                                         <Link
                                             key={item.name}
                                             href={item.href}
-                                            className={`nav-item ${active ? 'nav-item-active' : ''}`}
+                                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 ${active
+                                                ? 'bg-[var(--color-surface-2)] text-foreground'
+                                                : 'text-foreground hover:bg-[var(--color-surface-2)]'
+                                                }`}
                                         >
-                                            <item.icon
-                                                className={`w-5 h-5 ${active ? 'text-orange-400' : 'text-muted-foreground'
-                                                    }`}
-                                            />
-                                            <span className="font-medium">{item.name}</span>
+                                            <item.icon className="w-4 h-4" />
+                                            <span className="font-medium text-sm text-foreground">{item.name}</span>
                                             {item.badge && (
                                                 <span className="ml-auto text-xs font-bold text-orange-400">
                                                     {item.badge}
@@ -112,26 +113,26 @@ export default function DashboardLayout({
                 </nav>
 
                 {/* Upgrade CTA */}
-                <div className="p-4 border-t border-border">
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-800/20 to-orange-700/10 border border-amber-700/30">
+                <div className="p-4">
+                    <div className="p-4 rounded-xl" style={{ backgroundColor: 'var(--color-brand-soft)' }}>
                         <div className="flex items-center gap-2 mb-2">
-                            <TrendingUp className="w-4 h-4 text-orange-400" />
-                            <span className="text-sm font-semibold text-foreground">Go Pro</span>
+                            <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-brand-strong)' }} />
+                            <span className="text-sm font-normal text-foreground">Go Pro</span>
                         </div>
                         <p className="text-xs text-muted-foreground mb-3">
                             Unlock auto-optimization and advanced analytics
                         </p>
-                        <button className="w-full btn-primary text-sm py-2">
+                        <button className="w-full text-sm py-2 px-4 rounded-lg text-white font-medium transition-all hover:opacity-90" style={{ backgroundColor: 'var(--color-brand-strong)' }}>
                             Upgrade Now
                         </button>
                     </div>
                 </div>
 
                 {/* Sign Out */}
-                <div className="p-4 border-t border-border">
-                    <button className="nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10">
-                        <LogOut className="w-5 h-5" />
-                        <span className="font-medium">Sign Out</span>
+                <div className="p-4">
+                    <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200">
+                        <LogOut className="w-4 h-4" />
+                        <span className="font-medium text-sm">Sign Out</span>
                     </button>
                 </div>
             </aside>
@@ -139,11 +140,14 @@ export default function DashboardLayout({
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 bg-card border-b border-border z-20">
                 <div className="flex items-center justify-between p-4">
-                    <Link href="/dashboard" className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center">
-                            <Coffee className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="font-bold text-lg text-foreground">AffiMark</span>
+                    <Link href="/dashboard" className="flex items-center">
+                        <Image
+                            src="/Affimark 400.webp"
+                            alt="Affimark"
+                            width={65}
+                            height={22}
+                            className="object-contain"
+                        />
                     </Link>
                     <button
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -163,10 +167,10 @@ export default function DashboardLayout({
                         <nav className="p-4 space-y-6 max-h-[70vh] overflow-y-auto">
                             {navigationGroups.map((group) => (
                                 <div key={group.label}>
-                                    <p className="px-2 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <p className="px-2 mb-2 text-xs font-normal text-muted-foreground tracking-wider">
                                         {group.label}
                                     </p>
-                                    <div className="space-y-1">
+                                    <div className="space-y-1.5 pl-4">
                                         {group.items.map((item) => {
                                             const active = isActive(item.href);
                                             return (
@@ -174,13 +178,13 @@ export default function DashboardLayout({
                                                     key={item.name}
                                                     href={item.href}
                                                     onClick={() => setIsMobileMenuOpen(false)}
-                                                    className={`nav-item ${active ? 'nav-item-active' : ''}`}
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 ${active
+                                                        ? 'bg-[var(--color-surface-2)] text-foreground'
+                                                        : 'text-foreground hover:bg-[var(--color-surface-2)]'
+                                                        }`}
                                                 >
-                                                    <item.icon
-                                                        className={`w-5 h-5 ${active ? 'text-orange-400' : 'text-muted-foreground'
-                                                            }`}
-                                                    />
-                                                    <span className="font-medium">{item.name}</span>
+                                                    <item.icon className="w-4 h-4" />
+                                                    <span className="font-medium text-sm text-foreground">{item.name}</span>
                                                     {item.badge && (
                                                         <span className="ml-auto text-xs font-bold text-orange-400">
                                                             {item.badge}

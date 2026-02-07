@@ -102,7 +102,7 @@ export default function OnboardingPage() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 text-center">
         <h1 className="text-3xl font-bold text-foreground mb-4">Sign in to continue</h1>
         <p className="text-muted-foreground mb-6 max-w-md">
-          You need an AffiMark account to complete onboarding.
+          You need an Affimark account to complete onboarding.
         </p>
         <button
           onClick={() => router.push('/sign-in?callbackUrl=/onboarding')}

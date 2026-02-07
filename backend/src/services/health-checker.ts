@@ -26,7 +26,7 @@ export interface HealthCheckResult {
 }
 
 export class HealthChecker {
-  constructor(private supabase: SupabaseClient) {}
+  constructor(private supabase: SupabaseClient) { }
 
   /**
    * Check health of a single destination URL
@@ -52,7 +52,7 @@ export class HealthChecker {
         redirect: 'follow',
         signal: controller.signal,
         headers: {
-          'User-Agent': 'AffiMarkBot/1.0 (Link Health Monitor; +https://affimark.com/bot)',
+          'User-Agent': 'AffimarkBot/1.0 (Link Health Monitor; +https://affimark.com/bot)',
         },
       });
 

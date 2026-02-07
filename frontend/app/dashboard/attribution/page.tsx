@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import AttributionDiagnostics from '@/components/attribution/AttributionDiagnostics';
 
 export const metadata = {
-  title: 'Attribution Diagnostics | AffiMark',
+  title: 'Attribution Diagnostics | Affimark',
   description: 'Test affiliate link tracking and redirect chains',
 };
 

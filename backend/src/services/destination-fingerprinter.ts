@@ -23,7 +23,7 @@ export class DestinationFingerprinter {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'AffiMark-Fingerprinter/1.0',
+          'User-Agent': 'Affimark-Fingerprinter/1.0',
           'Accept': 'text/html,application/xhtml+xml',
         },
         signal: AbortSignal.timeout(this.timeout),
@@ -38,12 +38,12 @@ export class DestinationFingerprinter {
       }
 
       const html = await response.text();
-      
+
       // Extract key elements for fingerprinting
       const title = this.extractTitle(html);
       const primaryImage = this.extractPrimaryImage(html, url);
       const contentHash = this.hashContent(html);
-      
+
       // Create fingerprint from key elements
       const fingerprint = this.createFingerprint(title, primaryImage, contentHash);
 

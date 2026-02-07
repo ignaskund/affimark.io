@@ -1,6 +1,6 @@
 # Commission Agent - Development & System Architecture Guide
 
-> **Purpose:** This document is a complete specification for a coding agent to implement the AffiMark Commission Agent feature. Every decision, sequence, data flow, and UI element is defined here. Follow this document as your single source of truth.
+> **Purpose:** This document is a complete specification for a coding agent to implement the Affimark Commission Agent feature. Every decision, sequence, data flow, and UI element is defined here. Follow this document as your single source of truth.
 
 ---
 
@@ -1427,7 +1427,7 @@ interface Insight {
 
 Place at the bottom of all results views:
 
-> Commission rates shown are estimates based on publicly available program information as of [last_verified date]. Actual rates may vary based on your account status, performance tier, negotiated terms, and current program conditions. AffiMark does not guarantee specific commission rates or earnings. Always verify rates directly with the affiliate network before switching programs.
+> Commission rates shown are estimates based on publicly available program information as of [last_verified date]. Actual rates may vary based on your account status, performance tier, negotiated terms, and current program conditions. Affimark does not guarantee specific commission rates or earnings. Always verify rates directly with the affiliate network before switching programs.
 
 ---
 

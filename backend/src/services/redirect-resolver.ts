@@ -24,7 +24,7 @@ export class RedirectResolver {
   constructor(options: ResolverOptions = {}) {
     this.maxHops = options.maxHops || 10;
     this.timeout = options.timeout || 15000; // 15 seconds
-    this.userAgent = options.userAgent || 'AffiMark-LinkGuard/1.0 (Link Health Monitor)';
+    this.userAgent = options.userAgent || 'Affimark-LinkGuard/1.0 (Link Health Monitor)';
   }
 
   /**

@@ -1,4 +1,4 @@
-## AffiMark Backend – Claude Code Guide (v2)
+## Affimark Backend – Claude Code Guide (v2)
 
 Backend: Cloudflare Workers API (Hono + TypeScript), Supabase.
 
@@ -794,7 +794,7 @@ export class LinkOptimizer {
 
 const ALERT_TEMPLATES = {
   link_broken: {
-    subject: 'AffiMark detected a broken link',
+    subject: 'Affimark detected a broken link',
     body: (data: any) => `
       Your ${data.productName} link was broken.
       
@@ -803,12 +803,12 @@ const ALERT_TEMPLATES = {
       
       We caught this before it cost you more.
       
-      [View in AffiMark →]
+      [View in Affimark →]
     `,
   },
   
   out_of_stock_fallback: {
-    subject: 'AffiMark auto-redirected your OOS product',
+    subject: 'Affimark auto-redirected your OOS product',
     body: (data: any) => `
       Your ${data.productName} went out of stock.
       
@@ -820,7 +820,7 @@ const ALERT_TEMPLATES = {
   },
   
   better_program_found: {
-    subject: 'AffiMark found a higher-paying program',
+    subject: 'Affimark found a higher-paying program',
     body: (data: any) => `
       Same product. Better commission.
       

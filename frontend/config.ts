@@ -1,10 +1,10 @@
 export const config = {
   metadata: {
-    title: "AffiMark",
+    title: "Affimark",
     description: "AI-powered creator monetization platform. Connect your social accounts and discover partnership opportunities.",
   },
   app: {
-    name: "AffiMark",
+    name: "Affimark",
     url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   },
   stripe: {

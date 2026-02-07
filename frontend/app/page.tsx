@@ -31,7 +31,7 @@ export default async function Home() {
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center">
                   <Coffee className="w-5 h-5 text-white" />
                 </div>
-                <span className="font-bold text-xl text-foreground">AffiMark</span>
+                <span className="font-bold text-xl text-foreground">Affimark</span>
               </Link>
               <div className="hidden md:flex items-center gap-6">
                 <Link href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -133,7 +133,7 @@ export default async function Home() {
               Not Another Dashboard. Revenue Protection.
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              AffiMark actively protects and optimizes your affiliate revenue
+              Affimark actively protects and optimizes your affiliate revenue
             </p>
           </div>
 
@@ -235,10 +235,10 @@ export default async function Home() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center">
                 <Coffee className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-foreground">AffiMark</span>
+              <span className="font-bold text-foreground">Affimark</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2026 AffiMark. Revenue protection for affiliate creators.
+              © 2026 Affimark. Revenue protection for affiliate creators.
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>

@@ -75,7 +75,10 @@ export default function ProblemsDetected({ issues }: ProblemsDetectedProps) {
           <h2 className="text-lg font-semibold text-gray-900">Problems Detected</h2>
           <Link
             href="/link-guard"
-            className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+            className="text-sm font-medium flex items-center gap-1"
+            style={{ color: 'var(--color-brand)' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-strong)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-brand)'}
           >
             View All
             <ExternalLink size={14} />
@@ -119,7 +122,10 @@ export default function ProblemsDetected({ issues }: ProblemsDetectedProps) {
                   <div className="flex flex-col gap-2">
                     <Link
                       href={`/link-guard?issue=${issue.id}`}
-                      className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+                      className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                      style={{ background: 'var(--color-brand)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-brand-strong)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'var(--color-brand)'}
                     >
                       Fix Now
                     </Link>
@@ -151,7 +157,10 @@ export default function ProblemsDetected({ issues }: ProblemsDetectedProps) {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <Link
             href="/link-guard"
-            className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1"
+            className="text-sm font-medium flex items-center justify-center gap-1"
+            style={{ color: 'var(--color-brand)' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-strong)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-brand)'}
           >
             View {issues.length - 5} more issues
             <ExternalLink size={14} />

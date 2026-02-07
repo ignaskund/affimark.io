@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: { handle: string } 
 
     const { shop } = await response.json();
 
-    const title = `${shop.shop_name} - AffiMark`;
+    const title = `${shop.shop_name} - Affimark`;
     const description = shop.shop_tagline || `Shop ${shop.shop_name}'s curated product recommendations`;
 
     return {
@@ -241,7 +241,7 @@ export default async function PublicShopPage({ params }: { params: { handle: str
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                AffiMark
+                Affimark
               </a>
             </p>
           </div>

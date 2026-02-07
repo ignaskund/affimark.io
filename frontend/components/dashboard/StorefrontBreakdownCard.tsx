@@ -177,7 +177,10 @@ export default function StorefrontBreakdownCard({ storefronts, totalProducts }: 
                 </div>
                 <Link
                     href="/dashboard/storefronts"
-                    className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
+                    className="text-sm transition-colors"
+                    style={{ color: 'var(--color-brand)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-strong)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-brand)'}
                 >
                     View all
                 </Link>

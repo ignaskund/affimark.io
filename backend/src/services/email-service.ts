@@ -36,7 +36,7 @@ export class EmailService {
     this.provider = options.provider;
     this.apiKey = options.apiKey;
     this.fromEmail = options.fromEmail;
-    this.fromName = options.fromName || 'AffiMark Link Guard';
+    this.fromName = options.fromName || 'Affimark Link Guard';
   }
 
   /**

@@ -1,4 +1,4 @@
-// Stripe Pricing Configuration for AffiMark
+// Stripe Pricing Configuration for Affimark
 
 export const STRIPE_PLANS = {
   FREE: {
@@ -65,13 +65,13 @@ export type PlanType = keyof typeof STRIPE_PLANS;
 
 export function getPlanByPriceId(priceId: string): PlanType | null {
   if (!priceId) return 'FREE';
-  
+
   for (const [key, plan] of Object.entries(STRIPE_PLANS)) {
     if (plan.priceId === priceId) {
       return key as PlanType;
     }
   }
-  
+
   return null;
 }
 
@@ -88,31 +88,31 @@ export function canUserAccessFeature(
   }
 ): boolean {
   const plan = STRIPE_PLANS[userPlan];
-  
+
   // Check plan tier
   const planOrder: PlanType[] = ['FREE', 'CREATOR', 'PRO'];
   const userPlanIndex = planOrder.indexOf(userPlan);
   const requiredPlanIndex = feature.requiredPlan
     ? planOrder.indexOf(feature.requiredPlan)
     : 0;
-  
+
   if (userPlanIndex < requiredPlanIndex) {
     return false;
   }
-  
+
   // Check specific limits
   if (feature.socialAccounts !== undefined) {
     if (plan.limits.socialAccounts !== -1 && feature.socialAccounts > plan.limits.socialAccounts) {
       return false;
     }
   }
-  
+
   if (feature.aiMessages !== undefined) {
     if (plan.limits.aiMessages !== -1 && feature.aiMessages > plan.limits.aiMessages) {
       return false;
     }
   }
-  
+
   return true;
 }
 

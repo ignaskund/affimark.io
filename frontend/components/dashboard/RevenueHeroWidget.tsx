@@ -22,17 +22,17 @@ export default function RevenueHeroWidget({
                 </div>
                 <div>
                     <p className="text-sm text-muted-foreground mb-1">Growth</p>
-                    <p className={`text-2xl font-bold ${growthRate >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <p className={`text-2xl font-bold ${growthRate >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
                         {growthRate >= 0 ? '+' : ''}{growthRate.toFixed(1)}%
                     </p>
                 </div>
                 <div>
                     <p className="text-sm text-muted-foreground mb-1">Revenue Protected</p>
-                    <p className="text-2xl font-bold text-emerald-400">{currency}{revenueProtected.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-[var(--color-success)]">{currency}{revenueProtected.toFixed(2)}</p>
                 </div>
                 <div>
                     <p className="text-sm text-muted-foreground mb-1">Potential Uplift</p>
-                    <p className="text-2xl font-bold text-amber-400">{currency}{potentialUplift.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-[var(--color-warning)]">{currency}{potentialUplift.toFixed(2)}</p>
                 </div>
             </div>
         </div>

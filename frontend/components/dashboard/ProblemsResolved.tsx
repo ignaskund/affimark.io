@@ -22,7 +22,7 @@ export default function ProblemsResolved({ actions, completedCount }: ProblemsRe
             <div className="space-y-4 mb-4">
               {actions.slice(0, 3).map((action) => (
                 <div key={action.id} className="flex items-start gap-3">
-                  <CheckCircle2 className="text-green-600 flex-shrink-0 mt-0.5" size={18} />
+                  <CheckCircle2 className="flex-shrink-0 mt-0.5" style={{ color: 'var(--color-success)' }} size={18} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">
                       {action.action_type
@@ -34,7 +34,7 @@ export default function ProblemsResolved({ actions, completedCount }: ProblemsRe
                       {action.link_health_issues?.title || 'Issue resolved'}
                     </p>
                   </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
                     Pending
                   </span>
                 </div>
@@ -60,14 +60,17 @@ export default function ProblemsResolved({ actions, completedCount }: ProblemsRe
       </div>
 
       {completedCount > 0 && (
-        <div className="px-6 py-4 bg-green-50 border-t border-gray-200">
+        <div className="px-6 py-4 border-t border-gray-200" style={{ background: 'var(--color-success-soft)' }}>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-green-700 font-medium">
+            <span className="font-medium" style={{ color: 'var(--color-success)' }}>
               {completedCount} problems resolved this month
             </span>
             <Link
               href="/link-guard/fixes"
-              className="text-green-600 hover:text-green-700 flex items-center gap-1"
+              className="flex items-center gap-1"
+              style={{ color: 'var(--color-success)' }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             >
               History
               <ExternalLink size={12} />

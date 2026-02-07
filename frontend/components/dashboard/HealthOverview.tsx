@@ -37,9 +37,9 @@ export function HealthOverview({
 
   // Get score background
   const getScoreBg = (score: number) => {
-    if (score >= 90) return 'bg-gradient-to-br from-green-50 to-emerald-50';
-    if (score >= 70) return 'bg-gradient-to-br from-yellow-50 to-orange-50';
-    return 'bg-gradient-to-br from-red-50 to-pink-50';
+    if (score >= 90) return 'bg-[var(--color-success-soft)]';
+    if (score >= 70) return 'bg-[var(--color-warning-soft)]';
+    return 'bg-[var(--color-danger-soft)]';
   };
 
   // Get score emoji
@@ -69,9 +69,8 @@ export function HealthOverview({
                 <span className="text-3xl">/100</span>
               </div>
               {scoreTrend !== 'stable' && (
-                <p className={`text-sm font-semibold mt-2 ${
-                  scoreTrend === 'up' ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <p className={`text-sm font-semibold mt-2 ${scoreTrend === 'up' ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   {scoreTrend === 'up' && '↑'}
                   {scoreTrend === 'down' && '↓'}
                   {scoreChange > 0 ? '+' : ''}{scoreChange} points
@@ -159,10 +158,10 @@ function StatCard({
   color: 'blue' | 'green' | 'red' | 'gray';
 }) {
   const colorClasses = {
-    blue: 'border-blue-200 bg-blue-50',
-    green: 'border-green-200 bg-green-50',
-    red: 'border-red-200 bg-red-50',
-    gray: 'border-gray-200 bg-gray-50',
+    blue: 'border-[var(--color-info)]/20 bg-[var(--color-info-soft)]',
+    green: 'border-[var(--color-success)]/20 bg-[var(--color-success-soft)]',
+    red: 'border-[var(--color-danger)]/20 bg-[var(--color-danger-soft)]',
+    gray: 'border-[var(--color-border)] bg-[var(--color-surface-2)]',
   };
 
   return (

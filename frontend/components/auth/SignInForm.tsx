@@ -116,7 +116,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
           We've sent a magic link to <strong className="text-white">{email}</strong>
         </p>
         <p className="text-sm text-gray-500">
-          Click the link in your email to sign in to AffiMark.
+          Click the link in your email to sign in to Affimark.
         </p>
       </div>
     );
@@ -130,7 +130,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
           <Coffee className="w-6 h-6 text-white" />
         </div>
         <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
-        <p className="text-gray-400">Sign in to continue to AffiMark</p>
+        <p className="text-gray-400">Sign in to continue to Affimark</p>
       </div>
 
       {/* Success Message */}

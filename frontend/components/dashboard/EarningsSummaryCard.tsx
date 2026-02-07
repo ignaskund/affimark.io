@@ -13,10 +13,10 @@ export default function EarningsSummaryCard({ totalEarnings, growthRate, currenc
   const isPositive = growthRate && growthRate > 0;
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 rounded-xl shadow-lg p-8 text-white">
+    <div className="rounded-xl shadow-lg p-8 text-white" style={{ background: 'linear-gradient(to bottom right, var(--color-brand), var(--color-brand-strong))' }}>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-blue-100 text-sm font-medium mb-1">Total Earnings (Last 30 Days)</p>
+          <p className="text-white/80 text-sm font-medium mb-1">Total Earnings (Last 30 Days)</p>
           <h2 className="text-4xl font-bold tracking-tight">
             {currency === 'EUR' && '€'}
             {currency === 'GBP' && '£'}
@@ -31,13 +31,13 @@ export default function EarningsSummaryCard({ totalEarnings, growthRate, currenc
       </div>
 
       {hasGrowth && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isPositive ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isPositive ? 'bg-white/20' : 'bg-black/20'}`}>
           {isPositive ? (
-            <TrendingUp className="h-5 w-5 text-green-200" />
+            <TrendingUp className="h-5 w-5 text-white" />
           ) : (
-            <TrendingDown className="h-5 w-5 text-red-200" />
+            <TrendingDown className="h-5 w-5 text-white" />
           )}
-          <span className={`text-sm font-semibold ${isPositive ? 'text-green-100' : 'text-red-100'}`}>
+          <span className="text-sm font-semibold text-white">
             {isPositive ? '+' : ''}
             {growthRate.toFixed(1)}% vs last month
           </span>
@@ -45,7 +45,7 @@ export default function EarningsSummaryCard({ totalEarnings, growthRate, currenc
       )}
 
       {!hasGrowth && (
-        <p className="text-blue-100 text-sm">
+        <p className="text-white/80 text-sm">
           Connect more storefronts to track growth
         </p>
       )}

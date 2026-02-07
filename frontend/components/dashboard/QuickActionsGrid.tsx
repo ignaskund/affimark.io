@@ -15,28 +15,28 @@ const quickActions: QuickAction[] = [
         label: 'Import Storefront',
         description: 'From Linktree or Beacons',
         href: '/onboarding/magic',
-        color: 'bg-indigo-500/20 text-indigo-400',
+        color: 'bg-[var(--color-brand)]/20 text-[var(--color-brand-strong)]',
     },
     {
         icon: <Package className="w-5 h-5" />,
         label: 'View Products',
         description: 'Browse all imported products',
         href: '/dashboard/products',
-        color: 'bg-emerald-500/20 text-emerald-400',
+        color: 'bg-[var(--color-success)]/20 text-[var(--color-success)]',
     },
     {
         icon: <Store className="w-5 h-5" />,
         label: 'Storefronts',
         description: 'Manage connected platforms',
         href: '/dashboard/storefronts',
-        color: 'bg-purple-500/20 text-purple-400',
+        color: 'bg-[var(--color-brand)]/20 text-[var(--color-brand-strong)]',
     },
     {
         icon: <TrendingUp className="w-5 h-5" />,
         label: 'Earnings',
         description: 'Track your commissions',
         href: '/dashboard/earnings',
-        color: 'bg-amber-500/20 text-amber-400',
+        color: 'bg-[var(--color-warning)]/20 text-[var(--color-warning)]',
     },
 ];
 

@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import PlatformReliabilityDashboard from '@/components/reliability/PlatformReliabilityDashboard';
 
 export const metadata = {
-  title: 'Platform Reliability | AffiMark',
+  title: 'Platform Reliability | Affimark',
   description: 'Track link stability and uptime across affiliate platforms',
 };
 

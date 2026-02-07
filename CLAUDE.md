@@ -1,8 +1,8 @@
-## AffiMark v2 – Claude Code Guide
+## Affimark v2 – Claude Code Guide
 
 **"Revenue protection for affiliate creators. Tax sanity included."**
 
-AffiMark is the Creator Operations Platform for storefront owners. We aggregate income from all platforms (Amazon, Awin, LTK, ShopMy), detect revenue leaks, suggest better-paying programs, and make tax season a one-click affair.
+Affimark is the Creator Operations Platform for storefront owners. We aggregate income from all platforms (Amazon, Awin, LTK, ShopMy), detect revenue leaks, suggest better-paying programs, and make tax season a one-click affair.
 
 **Positioning:** This is NOT "another analytics dashboard." This is revenue protection + operational sanity + tax readiness.
 
@@ -34,7 +34,7 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
 
 **THIS:** Revenue protection. Operational sanity. Tax readiness. Decision clarity.
 
-| Problem | AffiMark Solution | Tangible Value |
+| Problem | Affimark Solution | Tangible Value |
 |---------|-------------------|----------------|
 | Income in 5+ dashboards | Unified view + multi-currency | "One login. Know what you made." |
 | Tax prep takes hours | One-click export + tax personas | "German freelancer? Done in 10 seconds." |
@@ -198,7 +198,7 @@ CREATE TABLE affiliate_transactions (
 
 **Key Insight:** Creators love knowing what ALMOST went wrong. Frame issues as "money saved."
 
-**User Story:** Creator's Amazon link went 404 at 3 AM. AffiMark detected at 3:05 AM. Alert says: "This link was broken for 6 hours. Based on your traffic patterns, estimated prevented loss: €42-€110. We've flagged it for your review."
+**User Story:** Creator's Amazon link went 404 at 3 AM. Affimark detected at 3:05 AM. Alert says: "This link was broken for 6 hours. Based on your traffic patterns, estimated prevented loss: €42-€110. We've flagged it for your review."
 
 **Revenue Loss Ledger Concept:**
 ```
@@ -330,7 +330,7 @@ CREATE TABLE smartwrappers (
 
 **Objective Value:** In-app browsers (Instagram, TikTok) kill affiliate tracking. We detect and help users escape.
 
-**User Story:** Fan clicks link in Instagram. AffiMark detects in-app browser. Shows small prompt: "Open in Safari for best experience →". Fan taps, opens in Safari, affiliate tag survives.
+**User Story:** Fan clicks link in Instagram. Affimark detects in-app browser. Shows small prompt: "Open in Safari for best experience →". Fan taps, opens in Safari, affiliate tag survives.
 
 **Technical Requirements:**
 - Detect User-Agent for in-app browsers (Instagram, TikTok, Facebook, Twitter)
@@ -372,11 +372,11 @@ function isInAppBrowser(userAgent: string): boolean {
 
 ### FEATURE 8: Smart Link Optimizer (★ HERO FEATURE)
 
-**Objective Value:** Find better-paying programs for the same product. This is the #1 reason to use AffiMark.
+**Objective Value:** Find better-paying programs for the same product. This is the #1 reason to use Affimark.
 
 **Hero Positioning:** "Stop using 3% links when 12% links exist."
 
-**User Story:** Creator pastes Amazon link (3% commission). AffiMark shows: "Same product available via Sony Direct on Awin (8-12%). Based on your traffic, potential extra earnings: €40-€80/month."
+**User Story:** Creator pastes Amazon link (3% commission). Affimark shows: "Same product available via Sony Direct on Awin (8-12%). Based on your traffic, potential extra earnings: €40-€80/month."
 
 **CRITICAL - Expectation Management:**
 - Show confidence ranges, not guarantees
@@ -469,9 +469,9 @@ What we CANNOT do:
 **Position as:** "Attribution diagnostics & confidence checks" - NOT "protection" in legal/financial sense.
 
 **Testing Mode:**
-Creator clicks their own SmartWrapper → AffiMark shows "Tracking Confirmed ✓" with full chain visibility.
+Creator clicks their own SmartWrapper → Affimark shows "Tracking Confirmed ✓" with full chain visibility.
 
-**User Story:** Creator runs attribution check on Sephora link. AffiMark follows redirect chain. Shows: "Confidence: HIGH ✓. Your tag (jessica-20) appears in final URL. Cookie window: 30 days. Note: This does not guarantee commission if user has coupon extensions installed."
+**User Story:** Creator runs attribution check on Sephora link. Affimark follows redirect chain. Shows: "Confidence: HIGH ✓. Your tag (jessica-20) appears in final URL. Cookie window: 30 days. Note: This does not guarantee commission if user has coupon extensions installed."
 
 **Display:**
 ```
@@ -505,7 +505,7 @@ Creator clicks their own SmartWrapper → AffiMark shows "Tracking Confirmed ✓
 
 **Objective Value:** Show patterns over time. Validate creators' gut feelings about platforms.
 
-**User Story:** Creator suspects LTK links break more often. AffiMark shows: "LTK: 94% uptime, 3 OOS events this month. Amazon DE: 99% uptime, 1 broken link."
+**User Story:** Creator suspects LTK links break more often. Affimark shows: "LTK: 94% uptime, 3 OOS events this month. Amazon DE: 99% uptime, 1 broken link."
 
 **Display:**
 ```
@@ -652,7 +652,7 @@ NOT: "Platform reliability ranking"
 |-------|----------|----------------|
 | **1** | Universal Import + Dashboard | Immediate value, low risk |
 | **2** | SmartWrapper + Link Health | Trust-building, tangible protection |
-| **3** | Revenue Loss Ledger | Creates "AffiMark saved me €X" stories |
+| **3** | Revenue Loss Ledger | Creates "Affimark saved me €X" stories |
 | **4** | Smart Link Optimizer (carefully) | Hero feature, requires discipline |
 | **5** | Tax Personas | High value for EU, needs legal framing |
 | **6** | Attribution Diagnostics | Lower priority, well-scoped |
@@ -804,7 +804,7 @@ cd frontend && npm run build
 | Dashboard | <2s page load |
 | Optimizer | >80% brand identification, shown alternatives |
 | Health Check | >99% issue detection accuracy |
-| Loss Ledger | Users can articulate "AffiMark saved me €X" |
+| Loss Ledger | Users can articulate "Affimark saved me €X" |
 | Attribution | Clear confidence indicators, no false promises |
 | Tax Export | <10s generation, persona-appropriate formatting |
 

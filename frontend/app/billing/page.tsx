@@ -24,7 +24,7 @@ function BillingPageInner() {
 
     // Show success message if coming from successful checkout
     if (searchParams.get('success') === 'true') {
-      alert('Subscription successful! Welcome to AffiMark Pro! 🎉');
+      alert('Subscription successful! Welcome to Affimark Pro! 🎉');
     }
   }, [searchParams]);
 
@@ -150,11 +150,10 @@ function BillingPageInner() {
             return (
               <Card
                 key={key}
-                className={`relative bg-gray-900 border-2 p-8 ${
-                  isPopular
+                className={`relative bg-gray-900 border-2 p-8 ${isPopular
                     ? 'border-purple-600 shadow-lg shadow-purple-600/20'
                     : 'border-gray-800'
-                }`}
+                  }`}
               >
                 {isPopular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
@@ -197,11 +196,10 @@ function BillingPageInner() {
                   <Button
                     onClick={() => handleSubscribe(plan.priceId, plan.name)}
                     disabled={loading === plan.name}
-                    className={`w-full ${
-                      isPopular
+                    className={`w-full ${isPopular
                         ? 'bg-purple-600 hover:bg-purple-700 text-white'
                         : 'bg-gray-800 hover:bg-gray-700 text-white'
-                    }`}
+                      }`}
                   >
                     {loading === plan.name ? (
                       <Loader2 className="animate-spin" size={20} />

@@ -86,7 +86,7 @@ export default function AccountTypePage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome to AffiMark Link Guard
+            Welcome to Affimark Link Guard
           </h1>
           <p className="text-xl text-gray-600">
             Protect your affiliate revenue 24/7

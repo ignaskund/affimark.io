@@ -1,5 +1,5 @@
 /**
- * AffiMark TypeScript Type Definitions
+ * Affimark TypeScript Type Definitions
  * Shared types for frontend and API routes
  */
 

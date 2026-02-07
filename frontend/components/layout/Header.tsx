@@ -39,7 +39,7 @@ export default function Header() {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="text-2xl font-bold text-white">
-            AffiMark
+            Affimark
           </Link>
 
           {/* Navigation */}
@@ -49,11 +49,10 @@ export default function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors ${
-                    pathname === link.href
+                  className={`text-sm font-medium transition-colors ${pathname === link.href
                       ? 'text-white'
                       : 'text-gray-400 hover:text-white'
-                  }`}
+                    }`}
                 >
                   {link.label}
                 </Link>

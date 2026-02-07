@@ -43,14 +43,14 @@ export default function QuickActions({ userId, trackedPages, hasRedirectLinks }:
         {trackedPages.length === 0 && (
           <Link
             href="/onboarding/link-setup"
-            className="flex items-center gap-3 w-full px-4 py-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors group"
+            className="flex items-center gap-3 w-full px-4 py-3 bg-[var(--color-brand-soft)] hover:bg-[var(--color-brand)]/20 border border-[var(--color-brand)]/30 rounded-lg transition-colors group"
           >
-            <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-              <Plus className="text-blue-600" size={18} />
+            <div className="p-2 bg-[var(--color-brand)]/20 rounded-lg group-hover:bg-[var(--color-brand)]/30 transition-colors">
+              <Plus className="text-[var(--color-brand-strong)]" size={18} />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-blue-900">Add Link Page</p>
-              <p className="text-xs text-blue-600">Start monitoring your links</p>
+              <p className="text-sm font-medium text-[var(--color-text)]">Add Link Page</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Start monitoring your links</p>
             </div>
           </Link>
         )}
@@ -60,16 +60,16 @@ export default function QuickActions({ userId, trackedPages, hasRedirectLinks }:
           <button
             onClick={handleRunAudit}
             disabled={isRunningAudit}
-            className="flex items-center gap-3 w-full px-4 py-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-3 w-full px-4 py-3 bg-[var(--color-brand-soft)] hover:bg-[var(--color-brand)]/20 border border-[var(--color-brand)]/30 rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-              <Play className="text-purple-600" size={18} />
+            <div className="p-2 bg-[var(--color-brand)]/20 rounded-lg group-hover:bg-[var(--color-brand)]/30 transition-colors">
+              <Play className="text-[var(--color-brand-strong)]" size={18} />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-purple-900">
+              <p className="text-sm font-medium text-[var(--color-text)]">
                 {isRunningAudit ? 'Running Audit...' : 'Run Audit Now'}
               </p>
-              <p className="text-xs text-purple-600">Check all links for issues</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Check all links for issues</p>
             </div>
           </button>
         )}
@@ -78,14 +78,14 @@ export default function QuickActions({ userId, trackedPages, hasRedirectLinks }:
         {!hasRedirectLinks && trackedPages.length > 0 && (
           <Link
             href="/smartwrappers/create"
-            className="flex items-center gap-3 w-full px-4 py-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors group"
+            className="flex items-center gap-3 w-full px-4 py-3 bg-[var(--color-brand-soft)] hover:bg-[var(--color-brand)]/20 border border-[var(--color-brand)]/30 rounded-lg transition-colors group"
           >
-            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-              <Link2 className="text-green-600" size={18} />
+            <div className="p-2 bg-[var(--color-brand)]/20 rounded-lg group-hover:bg-[var(--color-brand)]/30 transition-colors">
+              <Link2 className="text-[var(--color-brand-strong)]" size={18} />
             </div>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-green-900">Create SmartWrapper</p>
-              <p className="text-xs text-green-600">Auto-fix with waterfall routing</p>
+              <p className="text-sm font-medium text-[var(--color-text)]">Create SmartWrapper</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Auto-fix with waterfall routing</p>
             </div>
           </Link>
         )}
@@ -114,7 +114,7 @@ export default function QuickActions({ userId, trackedPages, hasRedirectLinks }:
           {trackedPages.length > 3 && (
             <Link
               href="/link-guard"
-              className="block mt-3 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="block mt-3 text-xs text-[var(--color-brand)] hover:text-[var(--color-brand-strong)] font-medium"
             >
               View all {trackedPages.length} pages →
             </Link>

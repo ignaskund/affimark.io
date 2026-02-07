@@ -63,21 +63,21 @@ export async function handleDailyAudit(env: Env): Promise<void> {
         provider: 'sendgrid',
         apiKey: env.SENDGRID_API_KEY,
         fromEmail: env.EMAIL_FROM_ADDRESS,
-        fromName: env.EMAIL_FROM_NAME || 'AffiMark Link Guard'
+        fromName: env.EMAIL_FROM_NAME || 'Affimark Link Guard'
       });
     } else if (env.POSTMARK_API_KEY && env.EMAIL_FROM_ADDRESS) {
       emailService = new EmailService({
         provider: 'postmark',
         apiKey: env.POSTMARK_API_KEY,
         fromEmail: env.EMAIL_FROM_ADDRESS,
-        fromName: env.EMAIL_FROM_NAME || 'AffiMark Link Guard'
+        fromName: env.EMAIL_FROM_NAME || 'Affimark Link Guard'
       });
     } else if (env.RESEND_API_KEY && env.EMAIL_FROM_ADDRESS) {
       emailService = new EmailService({
         provider: 'resend',
         apiKey: env.RESEND_API_KEY,
         fromEmail: env.EMAIL_FROM_ADDRESS,
-        fromName: env.EMAIL_FROM_NAME || 'AffiMark Link Guard'
+        fromName: env.EMAIL_FROM_NAME || 'Affimark Link Guard'
       });
     }
 

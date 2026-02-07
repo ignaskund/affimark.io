@@ -246,7 +246,7 @@ export class StockChecker {
 
       const response = await fetch(productUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; AffiMark-LinkGuard/1.0)'
+          'User-Agent': 'Mozilla/5.0 (compatible; Affimark-LinkGuard/1.0)'
         },
         signal: controller.signal
       });

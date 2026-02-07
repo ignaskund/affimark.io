@@ -91,7 +91,7 @@ export default async function TaxExportPage() {
             </h3>
             <p className="text-sm text-muted-foreground">
               This export is <strong className="text-foreground">formatted for informational purposes</strong> and
-              follows commonly accepted structures for the selected region. AffiMark does not provide tax advice.
+              follows commonly accepted structures for the selected region. Affimark does not provide tax advice.
               Please review this export with your accountant or tax advisor before submitting to tax authorities.
             </p>
           </div>

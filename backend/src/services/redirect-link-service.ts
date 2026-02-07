@@ -1,7 +1,7 @@
 /**
  * Redirect Link Service
  *
- * Manages AffiMark redirect links (affimark.io/go/xyz)
+ * Manages Affimark redirect links (affimark.io/go/xyz)
  * - Create redirect links with short codes
  * - Track clicks
  * - Auto-swap destinations when issues detected
@@ -65,7 +65,7 @@ interface ClickTrackingParams {
 }
 
 export class RedirectLinkService {
-  constructor(private supabase: SupabaseClient) {}
+  constructor(private supabase: SupabaseClient) { }
 
   /**
    * Create a new redirect link

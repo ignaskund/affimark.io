@@ -7,7 +7,7 @@ import { ShieldCheck, AlertCircle, CheckCircle2, TrendingUp, Zap } from 'lucide-
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Link Health | AffiMark',
+  title: 'Link Health | Affimark',
   description: 'Monitor link health and track protected revenue',
 };
 

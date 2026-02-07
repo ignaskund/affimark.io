@@ -444,7 +444,7 @@ app.post('/tool/analyze_link', async (c) => {
     // Fetch page content (best-effort)
     let html = '';
     try {
-      const resp = await fetch(url, { headers: { 'User-Agent': 'AffiMarkBot/1.0' } });
+      const resp = await fetch(url, { headers: { 'User-Agent': 'AffimarkBot/1.0' } });
       html = await resp.text();
     } catch (err) {
       console.warn('[analyze_link] fetch failed:', err);

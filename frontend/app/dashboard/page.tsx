@@ -44,10 +44,10 @@ export default async function DashboardPage() {
 
   // Platform display configuration
   const platformConfig: Record<string, { displayName: string; icon: string }> = {
-    amazon: { displayName: 'Amazon Storefront', icon: '🛍️' },
-    ltk: { displayName: 'LTK', icon: '💄' },
-    shopmy: { displayName: 'ShopMy', icon: '🛒' },
-    awin: { displayName: 'Awin', icon: '🔗' },
+    amazon: { displayName: 'Amazon Storefront', icon: 'Ã°Å¸â€ºÂÃ¯Â¸Â' },
+    ltk: { displayName: 'LTK', icon: 'Ã°Å¸â€™â€ž' },
+    shopmy: { displayName: 'ShopMy', icon: 'Ã°Å¸â€ºâ€™' },
+    awin: { displayName: 'Awin', icon: 'Ã°Å¸â€â€”' },
   };
 
   // Parallelize all independent database queries
@@ -146,7 +146,7 @@ export default async function DashboardPage() {
         storefrontProducts[p.storefront_id].push({
           title: p.title,
           imageUrl: p.image_url,
-          price: p.current_price ? `€${p.current_price.toFixed(2)}` : null,
+          price: p.current_price ? `Ã¢â€šÂ¬${p.current_price.toFixed(2)}` : null,
         });
       }
     });
@@ -156,7 +156,7 @@ export default async function DashboardPage() {
   const formattedStorefronts = (importedStorefronts || []).map(s => {
     const config = platformConfig[s.platform] || {
       displayName: s.display_name || s.platform,
-      icon: s.icon || '🔗'
+      icon: s.icon || 'Ã°Å¸â€â€”'
     };
     return {
       id: s.id,
@@ -182,7 +182,7 @@ export default async function DashboardPage() {
   ) || 0;
 
   // Simulate revenue protected (in real app, sum from loss ledger)
-  const revenueProtected = (resolvedCount || 0) * 42; // Average €42 per resolved issue
+  const revenueProtected = (resolvedCount || 0) * 42; // Average Ã¢â€šÂ¬42 per resolved issue
 
   const totalEarnings = currentPeriodEarnings?.[0]?.total_commission_eur || 0;
   const growthRate = growthData?.[0]?.growth_rate || 0;
@@ -190,166 +190,169 @@ export default async function DashboardPage() {
   // Check if new user (no connected accounts AND no imported storefronts)
   const isNewUser = (accountsCount || 0) === 0 && (storefrontCount || 0) === 0;
 
-  // New user welcome screen
-  if (isNewUser) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center py-16 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-8 shadow-lg shadow-indigo-500/30">
-            <Sparkles className="w-10 h-10 text-white" />
-          </div>
-
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Welcome to AffiMark
+  // New user welcome screen with overlay
+  const welcomeOverlay = isNewUser ? (
+    <div className="fixed inset-0 top-[60px] lg:top-0 lg:left-72 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(250, 250, 250, 0.9)', backdropFilter: 'blur(12px)' }}>
+      <div className="glass-card max-w-md w-full mx-4 p-8 border border-border shadow-xl animate-scale-in">
+        <div className="text-center">
+          {/* Heading */}
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            Welcome to Affimark
           </h1>
-          <p className="text-xl text-muted-foreground mb-12 max-w-lg mx-auto">
+          <p className="text-foreground mb-6">
             Let's set up your revenue HQ in under 2 minutes
           </p>
 
-          <div className="grid gap-4 max-w-md mx-auto mb-12">
+          {/* Action buttons */}
+          <div className="space-y-3 mb-6">
             <Link
               href="/onboarding/magic"
-              className="btn-primary py-4 text-lg group"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-white w-full group transition-all duration-200 hover:opacity-90 shadow-md"
+              style={{ backgroundColor: 'var(--color-brand-strong)' }}
             >
-              <Sparkles className="w-5 h-5" />
               Import from Linktree / Beacons
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
 
             <Link
               href="/dashboard/storefronts"
-              className="btn-secondary py-4"
+              className="btn-secondary w-full"
             >
               Upload CSV Manually
             </Link>
           </div>
 
-          <div className="glass-card p-6 max-w-md mx-auto">
-            <p className="text-sm text-muted-foreground mb-3">
-              What you'll get access to:
+          {/* Features list with brand-soft background */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--color-brand-soft)' }}>
+            <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-3">
+              What you'll get access to
             </p>
-            <ul className="text-sm text-left space-y-2">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Unified earnings across all platforms</span>
+            <ul className="text-sm text-left space-y-2.5">
+              <li className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-brand-strong)' }} />
+                <span className="text-foreground font-light">Unified earnings across all platforms</span>
               </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Smart link optimization suggestions</span>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-brand-strong)' }} />
+                <span className="text-foreground font-light">Smart link optimization suggestions</span>
               </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Broken link detection & auto-fix</span>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-brand-strong)' }} />
+                <span className="text-foreground font-light">Broken link detection & auto-fix</span>
               </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>One-click tax export with EU presets</span>
+              <li className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-brand-strong)' }} />
+                <span className="text-foreground font-light">One-click tax export with EU presets</span>
               </li>
             </ul>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  ) : null;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="animate-fade-in">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Your creator revenue at a glance
-        </p>
-      </div>
+    <div className="relative min-h-full">
+      {welcomeOverlay}
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="animate-fade-in">
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Your creator revenue at a glance
+          </p>
+        </div>
 
-      {/* Uplift Alert (if suggestions available) */}
-      {potentialUplift > 0 && (
-        <UpliftAlert
+        {/* Uplift Alert (if suggestions available) */}
+        {potentialUplift > 0 && (
+          <UpliftAlert
+            potentialUplift={potentialUplift}
+            linkCount={suggestionsCount || 0}
+            currency={currency}
+          />
+        )}
+
+        {/* Revenue Hero Widget */}
+        <RevenueHeroWidget
+          totalEarnings={totalEarnings}
+          growthRate={growthRate}
+          revenueProtected={revenueProtected}
           potentialUplift={potentialUplift}
-          linkCount={suggestionsCount || 0}
           currency={currency}
         />
-      )}
 
-      {/* Revenue Hero Widget */}
-      <RevenueHeroWidget
-        totalEarnings={totalEarnings}
-        growthRate={growthRate}
-        revenueProtected={revenueProtected}
-        potentialUplift={potentialUplift}
-        currency={currency}
-      />
-
-      {/* Quick Actions */}
-      <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-1">
-          Quick Actions
-        </h2>
-        <QuickActionsGrid />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-        {/* Left Column - Storefronts */}
-        <div className="lg:col-span-2">
-          <StorefrontBreakdownCard
-            storefronts={formattedStorefronts}
-            totalProducts={totalProducts}
-          />
+        {/* Quick Actions */}
+        <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 px-1">
+            Quick Actions
+          </h2>
+          <QuickActionsGrid />
         </div>
 
-        {/* Right Column - Insights */}
-        <div>
-          <InsightsPanel
-            topProduct={undefined}
-            urgentIssues={issuesCount || 0}
-            weeklyTrend={growthRate}
-          />
-        </div>
-      </div>
-
-      {/* Issues Summary (if any) */}
-      {(issuesCount || 0) > 0 && (
-        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-amber-400" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">
-                  {issuesCount} issue{issuesCount !== 1 ? 's' : ''} need{issuesCount === 1 ? 's' : ''} attention
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Click to review and resolve link health issues
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/dashboard/revenue-loss"
-              className="btn-secondary text-sm"
-            >
-              View Issues
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          {/* Left Column - Storefronts */}
+          <div className="lg:col-span-2">
+            <StorefrontBreakdownCard
+              storefronts={formattedStorefronts}
+              totalProducts={totalProducts}
+            />
           </div>
-        </div>
-      )}
 
-      {/* Recent Activity */}
-      <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-indigo-400" />
-            </div>
-            <h3 className="font-semibold text-foreground">Recent Activity</h3>
+          {/* Right Column - Insights */}
+          <div>
+            <InsightsPanel
+              topProduct={undefined}
+              urgentIssues={issuesCount || 0}
+              weeklyTrend={growthRate}
+            />
           </div>
         </div>
 
-        <div className="text-center py-8 text-muted-foreground">
-          <p>Activity feed coming soon</p>
-          <p className="text-sm mt-1">Track imports, link changes, and earnings updates</p>
+        {/* Issues Summary (if any) */}
+        {(issuesCount || 0) > 0 && (
+          <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-warning)/20' }}>
+                  <AlertCircle className="w-6 h-6" style={{ color: 'var(--color-warning)' }} />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">
+                    {issuesCount} issue{issuesCount !== 1 ? 's' : ''} need{issuesCount === 1 ? 's' : ''} attention
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Click to review and resolve link health issues
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/revenue-loss"
+                className="btn-secondary text-sm"
+              >
+                View Issues
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Recent Activity */}
+        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--color-brand)/20' }}>
+                <Clock className="w-5 h-5" style={{ color: 'var(--color-brand)' }} />
+              </div>
+              <h3 className="font-semibold text-foreground">Recent Activity</h3>
+            </div>
+          </div>
+
+
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Activity feed coming soon</p>
+            <p className="text-sm mt-1">Track imports, link changes, and earnings updates</p>
+          </div>
         </div>
       </div>
     </div>

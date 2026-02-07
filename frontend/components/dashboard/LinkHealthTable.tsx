@@ -138,14 +138,14 @@ export function LinkHealthTable({
               placeholder="Search links..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-3 py-1.5 text-sm border border-[var(--color-border)] rounded-md focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
             />
 
             {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="text-sm border border-[var(--color-border)] rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
             >
               <option value="all">All Status</option>
               <option value="healthy">Healthy</option>
@@ -157,7 +157,7 @@ export function LinkHealthTable({
             <select
               value={monetizationFilter}
               onChange={(e) => setMonetizationFilter(e.target.value as any)}
-              className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="text-sm border border-[var(--color-border)] rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
             >
               <option value="all">All Links</option>
               <option value="monetized">Monetized</option>
@@ -168,7 +168,7 @@ export function LinkHealthTable({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="text-sm border border-[var(--color-border)] rounded-md px-3 py-1.5 focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent"
             >
               <option value="health">Sort by Health</option>
               <option value="status">Sort by Status</option>
@@ -218,17 +218,19 @@ export function LinkHealthTable({
                         href={link.original_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                        className="text-sm font-medium"
+                        style={{ color: 'var(--color-brand)' }}
                         title={link.original_url}
+                        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-brand-strong)'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-brand)'}
                       >
                         {truncateUrl(link.original_url)}
                       </a>
                       <div className="flex items-center mt-1">
-                        <div className={`w-2 h-2 rounded-full mr-2 ${
-                          link.health_score >= 90 ? 'bg-green-500' :
-                          link.health_score >= 70 ? 'bg-yellow-500' :
-                          'bg-red-500'
-                        }`} />
+                        <div className={`w-2 h-2 rounded-full mr-2 ${link.health_score >= 90 ? 'bg-green-500' :
+                            link.health_score >= 70 ? 'bg-yellow-500' :
+                              'bg-red-500'
+                          }`} />
                         <span className="text-xs text-gray-500">
                           Health: {link.health_score}/100
                         </span>
@@ -239,11 +241,10 @@ export function LinkHealthTable({
                     {getStatusBadge(link)}
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`text-sm ${
-                      getLinkStatus(link) === 'critical' ? 'text-red-600 font-semibold' :
-                      getLinkStatus(link) === 'warning' ? 'text-yellow-600' :
-                      'text-gray-500'
-                    }`}>
+                    <span className={`text-sm ${getLinkStatus(link) === 'critical' ? 'text-red-600 font-semibold' :
+                        getLinkStatus(link) === 'warning' ? 'text-yellow-600' :
+                          'text-gray-500'
+                      }`}>
                       {getIssueText(link)}
                     </span>
                   </td>
@@ -266,7 +267,16 @@ export function LinkHealthTable({
                       {getLinkStatus(link) !== 'healthy' && (
                         <button
                           onClick={() => onFixLink(link.id)}
-                          className="text-indigo-600 hover:text-indigo-900 px-2 py-1 rounded hover:bg-indigo-50"
+                          className="px-2 py-1 rounded transition-colors"
+                          style={{ color: 'var(--color-brand)' }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--color-brand-strong)';
+                            e.currentTarget.style.background = 'var(--color-brand-soft)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--color-brand)';
+                            e.currentTarget.style.background = 'transparent';
+                          }}
                           title="Fix"
                         >
                           🔧

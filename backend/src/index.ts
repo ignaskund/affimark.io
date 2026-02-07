@@ -1,5 +1,5 @@
 /**
- * AffiMark Backend - Main Entry Point
+ * Affimark Backend - Main Entry Point
  */
 
 import { Hono } from 'hono';
@@ -36,14 +36,14 @@ app.get('/api/health', (c) => {
     return c.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        message: 'AffiMark Backend is running'
+        message: 'Affimark Backend is running'
     });
 });
 
 // Root endpoint
 app.get('/', (c) => {
     return c.json({
-        name: 'AffiMark Backend API',
+        name: 'Affimark Backend API',
         version: '1.0.0',
         status: 'running'
     });

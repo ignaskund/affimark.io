@@ -20,7 +20,7 @@ interface ExtractedLink {
 }
 
 export class LinkCrawler {
-  private readonly userAgent = 'AffiMark-LinkAudit/1.0';
+  private readonly userAgent = 'Affimark-LinkAudit/1.0';
   private readonly timeout = 10000; // 10 seconds
 
   /**
@@ -68,7 +68,7 @@ export class LinkCrawler {
    */
   private extractLinks(html: string, baseUrl: string): ExtractedLink[] {
     const links: ExtractedLink[] = [];
-    
+
     // Match anchor tags with href attributes
     const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)/gi;
     let match;

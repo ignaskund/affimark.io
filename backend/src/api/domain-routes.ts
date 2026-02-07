@@ -100,7 +100,7 @@ domainRoutes.post('/', async (c) => {
           type: 'CNAME',
           host: domain,
           value: 'go.affimark.com',
-          description: 'Point your domain to AffiMark',
+          description: 'Point your domain to Affimark',
         },
         step2: {
           type: 'TXT',

@@ -49,7 +49,7 @@ api.route('/api/products', productsRoutes);
 import inventoryRoutes from './api/inventory-routes';
 api.route('/api/inventory', inventoryRoutes);
 
-// Redirect Links Routes (AffiMark autopilot system - affimark.io/go/xyz)
+// Redirect Links Routes (Affimark autopilot system - affimark.io/go/xyz)
 import redirectRoutes from './api/redirect-routes';
 api.route('/api/redirects', redirectRoutes);
 

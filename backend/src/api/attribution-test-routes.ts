@@ -93,7 +93,7 @@ async function followRedirectChain(url: string, maxRedirects = 10): Promise<{
       const response = await fetch(currentUrl, {
         redirect: 'manual',
         headers: {
-          'User-Agent': 'AffiMark-Attribution-Bot/1.0',
+          'User-Agent': 'Affimark-Attribution-Bot/1.0',
         },
       });
 

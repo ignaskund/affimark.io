@@ -6,7 +6,7 @@ import Providers from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AffiMark - AI-Powered Creator Monetization",
+  title: "Affimark - AI-Powered Creator Monetization",
   description: "Connect your social accounts and discover monetization opportunities with AI",
 };
 

@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
         function: {
           name: 'setupShop',
           description:
-            "Help the creator set up their AffiMark shop with initial configuration. Use this when the user wants to create or configure their shop.",
+            "Help the creator set up their Affimark shop with initial configuration. Use this when the user wants to create or configure their shop.",
           parameters: {
             type: 'object',
             properties: {
