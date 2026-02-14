@@ -17,6 +17,7 @@ import {
   Activity,
   Shield,
   Search,
+  Bot,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/dashboard/revenue-loss', label: 'Revenue Protection', icon: Shield },
   { href: '/dashboard/attribution', label: 'Attribution Check', icon: Search },
   { href: '/dashboard/optimizer', label: 'Link Optimizer', icon: Sparkles },
+  { href: '/dashboard/product-verifier', label: 'Product Verifier', icon: Search },
   { href: '/dashboard/reliability', label: 'Platform Reliability', icon: Activity },
   { href: '/dashboard/tax-export', label: 'Tax Export', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
@@ -70,11 +72,10 @@ export function AppShell({ children }: AppShellProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive
                     ? 'bg-gray-900 text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-900/60'
-                }`}
+                  }`}
               >
                 <Icon size={18} className={isActive ? 'text-purple-400' : 'text-gray-500'} />
                 <span>{item.label}</span>

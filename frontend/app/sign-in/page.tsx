@@ -13,11 +13,13 @@ import { redirect } from 'next/navigation';
 export default async function SignInPage({
     searchParams,
 }: {
-    searchParams: { [key: string]: string | string[] | undefined };
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
     const session = await auth();
+    const params = await searchParams;
+
     if (session?.user) {
-        const callbackUrl = typeof searchParams?.callbackUrl === 'string' ? searchParams.callbackUrl : '/dashboard';
+        const callbackUrl = typeof params?.callbackUrl === 'string' ? params.callbackUrl : '/dashboard';
         redirect(callbackUrl);
     }
 

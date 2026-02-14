@@ -70,14 +70,36 @@ export const authOptions: AuthOptions = {
             credentials: {
                 email: { label: "Email", type: "text" },
                 password: { label: "Password", type: "password" },
+                isVerified: { label: "Is Verified", type: "text" },
+                userId: { label: "User ID", type: "text" },
+                userName: { label: "User Name", type: "text" },
             },
             async authorize(credentials) {
-                if (!credentials?.email || !credentials?.password) {
-                    console.log("[NextAuth] Missing email or password");
+                if (!credentials?.email) {
+                    console.log("[NextAuth] Missing email");
                     return null;
                 }
 
                 try {
+                    // Handle post-verification auto-sign-in (no password needed)
+                    // User ID and name are passed directly from verify-otp endpoint
+                    if (credentials.isVerified === 'true' && credentials.userId) {
+                        console.log("[NextAuth] Post-verification sign-in for:", credentials.email, "userId:", credentials.userId);
+
+                        // Trust the userId from verify-otp - no need to look up again
+                        return {
+                            id: credentials.userId,
+                            email: credentials.email,
+                            name: credentials.userName || credentials.email.split('@')[0],
+                        };
+                    }
+
+                    // Standard password-based authentication
+                    if (!credentials.password) {
+                        console.log("[NextAuth] Missing password for standard sign-in");
+                        return null;
+                    }
+
                     // Authenticate with Supabase
                     const { data, error } = await supabase.auth.signInWithPassword({
                         email: credentials.email,

@@ -13,3 +13,15 @@ local_protocol = "http"
 # Browser Rendering for Puppeteer-based scraping
 [browser]
 binding = "BROWSER"
+
+[ai]
+binding = "AI"
+
+# KV Namespace for AI response caching
+[[kv_namespaces]]
+binding = "AI_CACHE"
+id = "1027fd9f1443433ca3dc4ff2d5bf0b2d"
+
+# Cron triggers for scheduled tasks
+[triggers]
+crons = ["0 */6 * * *"]  # Every 6 hours for watchlist monitoring

@@ -9,39 +9,8 @@ import {
 import ProductLibrary, { Product } from './ProductLibrary';
 import AddLinkForm from './AddLinkForm';
 import AnalysisResults from './AnalysisResults';
-
-interface AnalysisResult {
-  productId: string;
-  productName: string;
-  brand: { brand: string; product?: string; category?: string };
-  current_link: {
-    url: string;
-    platform: string;
-    platform_name: string;
-    commission_rate: number | null;
-  };
-  alternatives: Array<{
-    id: string;
-    network: string;
-    brand_name: string;
-    commission_rate_low: number;
-    commission_rate_high: number;
-    cookie_duration: number;
-    requires_application: boolean;
-    confidence_score: number;
-    last_verified: string;
-    potential_gain_low: number;
-    potential_gain_high: number;
-    signup_url?: string;
-  }>;
-  insights?: Array<{
-    type: 'tip' | 'opportunity' | 'warning' | 'action';
-    title: string;
-    description: string;
-    priority: 'high' | 'medium' | 'low';
-    actionUrl?: string;
-  }>;
-}
+import QuickAnalyzeInput from './QuickAnalyzeInput';
+import { type ProductResult } from './ProductResultCard';
 
 export default function SmartOptimizer() {
   const [storefrontProducts, setStorefrontProducts] = useState<Product[]>([]);
@@ -50,7 +19,8 @@ export default function SmartOptimizer() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [results, setResults] = useState<AnalysisResult[] | null>(null);
+  const [results, setResults] = useState<ProductResult[] | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const allProducts = [...storefrontProducts, ...addedProducts];
@@ -133,6 +103,7 @@ export default function SmartOptimizer() {
       }
 
       setResults(data.results);
+      setSessionId(data.sessionId || null);
 
       // Refresh products to get updated analysis data
       fetchProducts();
@@ -145,7 +116,32 @@ export default function SmartOptimizer() {
 
   const clearResults = () => {
     setResults(null);
+    setSessionId(null);
     setSelectedIds([]);
+  };
+
+  const handleAction = async (
+    action: 'saved' | 'applied' | 'dismissed',
+    programId: string,
+    analysisId: string
+  ) => {
+    try {
+      const response = await fetch('/api/optimizer/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis_id: analysisId, action }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Action failed');
+      }
+
+      // Refresh products to update status
+      await fetchProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save action');
+    }
   };
 
   if (isLoading) {
@@ -158,11 +154,31 @@ export default function SmartOptimizer() {
 
   // Show results view
   if (results) {
-    return <AnalysisResults results={results} onClear={clearResults} />;
+    return (
+      <AnalysisResults
+        results={results}
+        sessionId={sessionId || undefined}
+        onClear={clearResults}
+        onAction={handleAction}
+      />
+    );
   }
 
   return (
     <div className="space-y-6">
+      {/* Quick Analyze Input */}
+      <QuickAnalyzeInput onAction={handleAction} />
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border"></div>
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">Or analyze saved products</span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

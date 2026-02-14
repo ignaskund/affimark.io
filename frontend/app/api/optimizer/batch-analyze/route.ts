@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase-server';
+import {
+  extractWithAI,
+  calculateBrandConfidence,
+  calculateCategoryConfidence,
+  getUserPersonalization,
+  canUseAI,
+  trackAICall,
+  getExperienceLevel,
+} from '@/lib/ai-helper';
 
 // ============================================================
 // TYPES
@@ -27,13 +36,14 @@ interface PlatformDetection {
 interface BrandResult {
   name: string;
   slug: string;
-  detected_from: 'user_provided' | 'known_brands' | 'alias_db' | 'url_domain' | 'title_heuristic' | 'none';
+  detected_from: 'user_provided' | 'known_brands' | 'alias_db' | 'url_domain' | 'title_heuristic' | 'ai' | 'none';
   confidence: number;
 }
 
 interface CategoryResult {
   name: string;
-  detected_from: 'keywords' | 'db_lookup' | 'default';
+  detected_from: 'keywords' | 'db_lookup' | 'ai' | 'default';
+  confidence: number;
   rate?: number;
 }
 
@@ -80,7 +90,7 @@ interface ProductResult {
   productId: string;
   productName: string;
   brand: { name: string; detected_from: string; confidence: number };
-  category: { name: string; detected_from: string };
+  category: { name: string; detected_from: string; confidence: number };
   current: {
     url: string;
     platform: string;
@@ -90,9 +100,20 @@ interface ProductResult {
     cookie_duration: number;
     cookie_unit: 'hours' | 'days';
     has_tracking: boolean;
+    confidence: number;
   };
   alternatives: AlternativeResult[];
   insights: Insight[];
+  trace?: {
+    brand_detection_method: string;
+    brand_confidence: number;
+    category_detection_method: string;
+    category_confidence: number;
+    ai_used: boolean;
+    ai_calls: number;
+    platform_detected: string;
+    has_affiliate_tracking: boolean;
+  };
   error?: string;
 }
 
@@ -333,17 +354,22 @@ function extractFirstCapitalizedWord(text: string): string | null {
   return null;
 }
 
-async function detectBrand(product: ProductInput): Promise<BrandResult> {
+async function detectBrand(
+  product: ProductInput,
+  useAI: boolean = false
+): Promise<BrandResult> {
   // LEVEL 1: User-provided brand
   if (product.brand) {
-    return { name: product.brand, slug: slugify(product.brand), detected_from: 'user_provided', confidence: 5 };
+    const confidence = calculateBrandConfidence('user_provided');
+    return { name: product.brand, slug: slugify(product.brand), detected_from: 'user_provided', confidence };
   }
 
   // LEVEL 2: Known brands list match in title
   if (product.title) {
     const match = matchKnownBrand(product.title);
     if (match) {
-      return { name: match, slug: slugify(match), detected_from: 'known_brands', confidence: 4 };
+      const confidence = calculateBrandConfidence('known_brands');
+      return { name: match, slug: slugify(match), detected_from: 'known_brands', confidence };
     }
   }
 
@@ -365,11 +391,12 @@ async function detectBrand(product: ProductInput): Promise<BrandResult> {
         .limit(1)
         .single();
 
+      const confidence = calculateBrandConfidence('alias_db');
       return {
         name: program?.brand_name || alias.brand_slug,
         slug: alias.brand_slug,
         detected_from: 'alias_db',
-        confidence: 4,
+        confidence,
       };
     }
   }
@@ -377,18 +404,35 @@ async function detectBrand(product: ProductInput): Promise<BrandResult> {
   // LEVEL 4: URL domain parsing
   const brandFromUrl = extractBrandFromUrl(product.product_url);
   if (brandFromUrl) {
-    return { name: brandFromUrl, slug: slugify(brandFromUrl), detected_from: 'url_domain', confidence: 2 };
+    const confidence = calculateBrandConfidence('url_domain');
+    return { name: brandFromUrl, slug: slugify(brandFromUrl), detected_from: 'url_domain', confidence };
   }
 
   // LEVEL 5: First capitalized word from title
   if (product.title) {
     const firstCap = extractFirstCapitalizedWord(product.title);
     if (firstCap) {
-      return { name: firstCap, slug: slugify(firstCap), detected_from: 'title_heuristic', confidence: 1 };
+      const confidence = calculateBrandConfidence('title_heuristic');
+      return { name: firstCap, slug: slugify(firstCap), detected_from: 'title_heuristic', confidence };
     }
   }
 
-  return { name: 'Unknown', slug: 'unknown', detected_from: 'none', confidence: 0 };
+  // LEVEL 6: AI extraction (only if enabled and confidence is low)
+  if (useAI) {
+    const aiResult = await extractWithAI(product.product_url, product.title);
+    if (aiResult && aiResult.brand.name !== 'Unknown') {
+      const confidence = calculateBrandConfidence('ai', aiResult.brand.confidence);
+      return {
+        name: aiResult.brand.name,
+        slug: slugify(aiResult.brand.name),
+        detected_from: 'ai' as any,
+        confidence,
+      };
+    }
+  }
+
+  const confidence = calculateBrandConfidence('none');
+  return { name: 'Unknown', slug: 'unknown', detected_from: 'none', confidence };
 }
 
 // ============================================================
@@ -434,16 +478,41 @@ const CATEGORY_PATTERNS: Record<string, { keywords: string[]; rate: number }> = 
   },
 };
 
-function classifyCategory(title: string | null | undefined, url: string): CategoryResult {
+async function classifyCategory(
+  title: string | null | undefined,
+  url: string,
+  useAI: boolean = false
+): Promise<CategoryResult> {
   const text = `${title || ''} ${url}`.toLowerCase();
+
+  // Try keyword matching first
   for (const [category, config] of Object.entries(CATEGORY_PATTERNS)) {
     for (const keyword of config.keywords) {
       if (text.includes(keyword)) {
-        return { name: category, detected_from: 'keywords', rate: config.rate };
+        const confidence = calculateCategoryConfidence('keywords');
+        return { name: category, detected_from: 'keywords', confidence, rate: config.rate };
       }
     }
   }
-  return { name: 'general', detected_from: 'default' };
+
+  // If AI enabled and no keyword match, try AI
+  if (useAI) {
+    const aiResult = await extractWithAI(url, title);
+    if (aiResult && aiResult.category.name !== 'general') {
+      const confidence = calculateCategoryConfidence('ai', aiResult.category.confidence);
+      const rate = (CATEGORY_PATTERNS as any)[aiResult.category.name]?.rate;
+      return {
+        name: aiResult.category.name,
+        detected_from: 'ai',
+        confidence,
+        rate
+      };
+    }
+  }
+
+  // Default fallback
+  const confidence = calculateCategoryConfidence('default');
+  return { name: 'general', detected_from: 'default', confidence };
 }
 
 // ============================================================
@@ -799,17 +868,41 @@ async function analyzeProduct(
   estimatedClicks: number,
   productCount: number,
   sessionId: string | null,
+  useAI: boolean = false,
+  aiCallsUsed: { count: number } = { count: 0 }
 ): Promise<ProductResult> {
   const url = product.product_url;
 
   // STEP 1: Platform Detection
   const platform = detectPlatform(url);
 
-  // STEP 2: Brand Detection
-  const brand = await detectBrand(product);
+  // STEP 2: Brand Detection (with AI if enabled and confidence low)
+  let brand = await detectBrand(product, false); // First try without AI
+
+  // If confidence is low and AI is available, try AI extraction
+  if (useAI && brand.confidence < 0.7 && aiCallsUsed.count === 0) {
+    const aiEnhancedBrand = await detectBrand(product, true);
+    if (aiEnhancedBrand.confidence > brand.confidence) {
+      brand = aiEnhancedBrand;
+      aiCallsUsed.count++;
+      // Track AI call
+      await trackAICall(userId, supabaseServer, 'extraction');
+    }
+  }
 
   // STEP 3: Category Classification
-  const category = classifyCategory(product.title, url);
+  let category = await classifyCategory(product.title, url, false);
+
+  // If category confidence is low and AI is available (and we haven't used AI yet), try AI
+  if (useAI && category.confidence < 0.7 && aiCallsUsed.count === 0) {
+    const aiEnhancedCategory = await classifyCategory(product.title, url, true);
+    if (aiEnhancedCategory.confidence > category.confidence) {
+      category = aiEnhancedCategory;
+      aiCallsUsed.count++;
+      // Track AI call
+      await trackAICall(userId, supabaseServer, 'extraction');
+    }
+  }
 
   // STEP 4: Current Commission Rate
   let currentRate = platform?.defaultRate || 0;
@@ -906,6 +999,7 @@ async function analyzeProduct(
     category: {
       name: category.name,
       detected_from: category.detected_from,
+      confidence: category.confidence,
     },
     current: {
       url,
@@ -916,9 +1010,20 @@ async function analyzeProduct(
       cookie_duration: cookieDuration,
       cookie_unit: cookieUnit,
       has_tracking: hasTracking,
+      confidence: hasTracking ? 0.9 : 0.3, // High if tracking detected, low if guessing
     },
     alternatives,
     insights,
+    trace: {
+      brand_detection_method: brand.detected_from,
+      brand_confidence: brand.confidence,
+      category_detection_method: category.detected_from,
+      category_confidence: category.confidence,
+      ai_used: aiCallsUsed.count > 0,
+      ai_calls: aiCallsUsed.count,
+      platform_detected: platform?.key || 'unknown',
+      has_affiliate_tracking: hasTracking,
+    },
   };
 }
 
@@ -942,6 +1047,10 @@ export async function POST(request: NextRequest) {
     if (products.length > 20) {
       return NextResponse.json({ error: 'Maximum 20 products per batch' }, { status: 400 });
     }
+
+    // Get user personalization and AI settings
+    const personalization = await getUserPersonalization(session.user.id, supabaseServer);
+    const useAI = canUseAI(personalization);
 
     // Get user's traffic stats for gain estimation
     const { data: trafficStats } = await supabaseServer
@@ -973,9 +1082,19 @@ export async function POST(request: NextRequest) {
 
     // Analyze each product (per-product error handling)
     const results: ProductResult[] = [];
+    const aiCallsUsed = { count: 0 }; // Track AI calls in this batch
+
     for (const product of products) {
       try {
-        const result = await analyzeProduct(product, session.user.id, estimatedClicks, products.length, sessionId);
+        const result = await analyzeProduct(
+          product,
+          session.user.id,
+          estimatedClicks,
+          products.length,
+          sessionId,
+          useAI,
+          aiCallsUsed
+        );
         results.push(result);
       } catch (error) {
         console.error(`[CommissionAgent] Failed to analyze ${product.product_url}:`, error);
@@ -983,7 +1102,7 @@ export async function POST(request: NextRequest) {
           productId: product.id,
           productName: product.title || 'Unknown Product',
           brand: { name: 'Unknown', detected_from: 'none', confidence: 0 },
-          category: { name: 'general', detected_from: 'default' },
+          category: { name: 'general', detected_from: 'default', confidence: 0 },
           current: {
             url: product.product_url,
             platform: 'unknown',
@@ -993,6 +1112,7 @@ export async function POST(request: NextRequest) {
             cookie_duration: 0,
             cookie_unit: 'days',
             has_tracking: false,
+            confidence: 0,
           },
           alternatives: [],
           insights: [],

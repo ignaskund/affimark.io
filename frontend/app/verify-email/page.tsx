@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, Mail, ArrowRight, Coffee } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
+import { signIn } from 'next-auth/react';
 
 function VerifyEmailPageInner() {
   const router = useRouter();
@@ -79,15 +80,35 @@ function VerifyEmailPageInner() {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.user) {
         // Clear any stale session tokens created during initial sign-up
         await supabase.auth.signOut();
 
+        // Auto-sign-in the user via NextAuth with verified user data
         const callbackUrl = searchParams?.get('callbackUrl') || '/onboarding';
 
-        // Redirect to sign-in with success message and send them to onboarding next
+        const result = await signIn('credentials', {
+          email,
+          userId: data.user.id,
+          userName: data.user.name,
+          isVerified: 'true',
+          redirect: false,
+        });
+
+        if (result?.ok) {
+          // Redirect directly to onboarding - no intermediate sign-in page
+          router.push(callbackUrl);
+        } else {
+          console.error('Auto sign-in failed:', result?.error);
+          // Fallback: redirect to sign-in with verified flag
+          router.push(
+            `/sign-in?verified=true&email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+          );
+        }
+      } else if (res.ok) {
+        // Legacy response without user data - fallback to sign-in page
         router.push(
-          `/sign-in?verified=true&email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+          `/sign-in?verified=true&email=${encodeURIComponent(email)}&callbackUrl=/onboarding`
         );
       } else {
         // Better error messages

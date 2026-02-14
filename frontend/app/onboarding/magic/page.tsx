@@ -234,9 +234,9 @@ export default function MagicOnboardingPage() {
                 body: JSON.stringify({ limit: 20 }),
             }).catch(err => console.log('[Enrichment] Background enrichment started'));
 
-            // Step 4: Navigate to dashboard
-            console.log('[Import] Redirecting to dashboard...');
-            router.push('/dashboard');
+            // Step 4: Navigate to priorities setup (instead of dashboard)
+            console.log('[Import] Redirecting to priorities setup...');
+            router.push('/onboarding/priorities?from=magic');
         } catch (err: any) {
             console.error('[Import] Error:', err);
             setError(err.message || 'Failed to save. Please try again.');

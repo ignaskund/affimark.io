@@ -107,6 +107,22 @@ api.route('/api/attribution', attributionTestRoutes);
 import commissionRoutes from './api/commission-routes';
 api.route('/api/commission', commissionRoutes);
 
+// AI Extraction Routes (Workers AI for brand/category detection)
+import aiRoutes from './api/ai-routes';
+api.route('/api/ai', aiRoutes);
+
+// Product Verifier Routes (5-phase verification flow)
+import verifierRoutes from './api/verifier-routes';
+api.route('/api/verifier', verifierRoutes);
+
+// Product Finder Routes (Context-aware product search with Datafeedr)
+import finderRoutes from './routes/finder-routes';
+api.route('/api/finder', finderRoutes);
+
+// Context-Aware Agent Routes (AI chat with toggle-aware context)
+import agentRoutes from './routes/agent-routes';
+api.route('/api/agent', agentRoutes);
+
 // Migration Routes (Import from Linktree/Beacons/Stan)
 import migrationRoutes from './api/migration-routes';
 api.route('/api/migration', migrationRoutes);
