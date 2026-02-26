@@ -4,7 +4,7 @@
  * Combines with static profile for hybrid scoring
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiComplete, extractJson } from './ai-client';
 import { UserProfile } from './profile-builder';
 
 export interface DynamicIntent {
@@ -28,14 +28,7 @@ export interface DynamicIntent {
   confidenceScore?: number; // 0-100
 }
 
-// Lazy-init: Cloudflare Workers don't have process.env at module scope
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic();
-  }
-  return _anthropic;
-}
+// AI client is initialized in ai-client.ts
 
 /**
  * Analyze dynamic intent from user's current search context
@@ -142,19 +135,9 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    const response = await getAnthropic().messages.create({
-      model: 'claude-3-5-haiku-20250219',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const content = response.content[0];
-    if (content.type === 'text') {
-      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-    }
+    const text = await aiComplete({ prompt, maxTokens: 300 });
+    const parsed = extractJson(text);
+    if (parsed) return parsed;
   } catch (error) {
     console.error('[Dynamic Intent] AI analysis failed:', error);
   }

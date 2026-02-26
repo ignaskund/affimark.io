@@ -4,7 +4,7 @@
  * Good for MVP - upgrade to full OAuth later for higher accuracy
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiComplete, extractJson } from './ai-client';
 
 interface SocialAccount {
   platform: string;
@@ -26,14 +26,7 @@ export interface LightweightSocialContext {
   confidenceLevel: 'low' | 'medium' | 'high';
 }
 
-// Lazy-init: Cloudflare Workers don't have process.env at module scope
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic();
-  }
-  return _anthropic;
-}
+// AI client is initialized in ai-client.ts
 
 /**
  * Analyze social accounts using lightweight inference (no OAuth needed)
@@ -112,30 +105,21 @@ Return ONLY valid JSON:
   "reasoning": "Brief explanation"
 }`;
 
-  const response = await getAnthropic().messages.create({
-    model: 'claude-3-5-haiku-20250219',
-    max_tokens: 300,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  const text = await aiComplete({ prompt, maxTokens: 300 });
+  const inferred = extractJson(text);
 
-  const content = response.content[0];
-  if (content.type === 'text') {
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const inferred = JSON.parse(jsonMatch[0]);
-
-      return {
-        platforms: accounts.map(a => a.platform),
-        contentCategories: inferred.contentCategories || ['Lifestyle'],
-        audienceDemographics: {
-          ageRange: inferred.ageRange || '18-34',
-          topCountries: inferred.topCountries || ['US', 'UK', 'DE'],
-          interests: inferred.contentCategories || [],
-        },
-        estimatedReach: accounts.reduce((sum, a) => sum + (a.followerCount || 0), 0),
-        confidenceLevel: inferred.confidenceLevel || 'medium',
-      };
-    }
+  if (inferred) {
+    return {
+      platforms: accounts.map(a => a.platform),
+      contentCategories: inferred.contentCategories || ['Lifestyle'],
+      audienceDemographics: {
+        ageRange: inferred.ageRange || '18-34',
+        topCountries: inferred.topCountries || ['US', 'UK', 'DE'],
+        interests: inferred.contentCategories || [],
+      },
+      estimatedReach: accounts.reduce((sum, a) => sum + (a.followerCount || 0), 0),
+      confidenceLevel: inferred.confidenceLevel || 'medium',
+    };
   }
 
   throw new Error('Failed to parse AI response');

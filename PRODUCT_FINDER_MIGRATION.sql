@@ -90,14 +90,16 @@ CREATE TABLE IF NOT EXISTS product_finder_sessions (
 
 ALTER TABLE product_finder_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own finder sessions" ON product_finder_sessions;
 CREATE POLICY "Users can manage own finder sessions" ON product_finder_sessions
   FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access finder sessions" ON product_finder_sessions;
 CREATE POLICY "Service role full access finder sessions" ON product_finder_sessions
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_finder_sessions_user ON product_finder_sessions(user_id);
-CREATE INDEX idx_finder_sessions_status ON product_finder_sessions(status);
-CREATE INDEX idx_finder_sessions_created ON product_finder_sessions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_finder_sessions_user ON product_finder_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_finder_sessions_status ON product_finder_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_finder_sessions_created ON product_finder_sessions(created_at DESC);
 
 -- ============================================================
 -- PART 3: SAVED PRODUCTS (Enhanced Watchlist)
@@ -145,14 +147,16 @@ CREATE TABLE IF NOT EXISTS saved_products (
 
 ALTER TABLE saved_products ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own saved products" ON saved_products;
 CREATE POLICY "Users can manage own saved products" ON saved_products
   FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access saved products" ON saved_products;
 CREATE POLICY "Service role full access saved products" ON saved_products
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_saved_products_user ON saved_products(user_id);
-CREATE INDEX idx_saved_products_list ON saved_products(user_id, list_type) WHERE NOT is_archived;
-CREATE INDEX idx_saved_products_category ON saved_products(user_id, category);
+CREATE INDEX IF NOT EXISTS idx_saved_products_user ON saved_products(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_products_list ON saved_products(user_id, list_type) WHERE NOT is_archived;
+CREATE INDEX IF NOT EXISTS idx_saved_products_category ON saved_products(user_id, category);
 
 -- ============================================================
 -- PART 4: SOCIAL CONTEXT ANALYSIS (for OAuth-connected socials)
@@ -190,12 +194,14 @@ CREATE TABLE IF NOT EXISTS social_context_analysis (
 
 ALTER TABLE social_context_analysis ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own social analysis" ON social_context_analysis;
 CREATE POLICY "Users can view own social analysis" ON social_context_analysis
   FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access social analysis" ON social_context_analysis;
 CREATE POLICY "Service role full access social analysis" ON social_context_analysis
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_social_analysis_user ON social_context_analysis(user_id);
+CREATE INDEX IF NOT EXISTS idx_social_analysis_user ON social_context_analysis(user_id);
 
 -- ============================================================
 -- PART 5: PRIORITY OPTIONS REFERENCE (for UI consistency)
@@ -271,12 +277,14 @@ CREATE TABLE IF NOT EXISTS user_product_profiles (
 
 ALTER TABLE user_product_profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own profile" ON user_product_profiles;
 CREATE POLICY "Users can view own profile" ON user_product_profiles
   FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access profiles" ON user_product_profiles;
 CREATE POLICY "Service role full access profiles" ON user_product_profiles
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_user_profiles_user ON user_product_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user ON user_product_profiles(user_id);
 
 COMMENT ON TABLE user_product_profiles IS 'User profiles built from socials/storefronts for personalized product matching';
 COMMENT ON COLUMN user_product_profiles.social_platforms IS 'Connected social platforms: ["youtube", "instagram"]';
@@ -333,14 +341,15 @@ CREATE TABLE IF NOT EXISTS user_operation_costs (
 
 ALTER TABLE user_operation_costs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own costs" ON user_operation_costs;
 CREATE POLICY "Users can view own costs" ON user_operation_costs
   FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access costs" ON user_operation_costs;
 CREATE POLICY "Service role full access costs" ON user_operation_costs
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_user_costs_daily ON user_operation_costs(user_id, operation_date);
-CREATE INDEX idx_user_costs_monthly ON user_operation_costs(user_id, operation_date)
-  WHERE operation_date >= DATE_TRUNC('month', CURRENT_DATE);
+CREATE INDEX IF NOT EXISTS idx_user_costs_daily ON user_operation_costs(user_id, operation_date);
+CREATE INDEX IF NOT EXISTS idx_user_costs_type ON user_operation_costs(user_id, operation_type, operation_date);
 
 COMMENT ON TABLE user_operation_costs IS 'Tracks operation costs per user for budget enforcement (Fix #8)';
 
@@ -381,14 +390,16 @@ CREATE TABLE IF NOT EXISTS finder_implicit_feedback (
 
 ALTER TABLE finder_implicit_feedback ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own feedback" ON finder_implicit_feedback;
 CREATE POLICY "Users can manage own feedback" ON finder_implicit_feedback
   FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access feedback" ON finder_implicit_feedback;
 CREATE POLICY "Service role full access feedback" ON finder_implicit_feedback
   FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
 
-CREATE INDEX idx_feedback_user ON finder_implicit_feedback(user_id);
-CREATE INDEX idx_feedback_product ON finder_implicit_feedback(product_id);
-CREATE INDEX idx_feedback_session ON finder_implicit_feedback(session_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_user ON finder_implicit_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_product ON finder_implicit_feedback(product_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_session ON finder_implicit_feedback(session_id);
 
 COMMENT ON TABLE finder_implicit_feedback IS 'Implicit user feedback for machine learning (Fix #10)';
 
@@ -409,6 +420,7 @@ BEGIN
   RAISE NOTICE '  - social_context_analysis';
   RAISE NOTICE '  - user_product_profiles (for profile-based matching)';
   RAISE NOTICE '  - priority_options (with seed data)';
+  RAISE NOTICE '  - linktree_extracted_items (Linktree ingestion metadata)';
   RAISE NOTICE '';
   RAISE NOTICE 'Tables altered:';
   RAISE NOTICE '  - user_creator_preferences (added priority columns)';
@@ -419,3 +431,51 @@ BEGIN
   RAISE NOTICE '  3. Test the new onboarding flow';
   RAISE NOTICE '============================================================';
 END $$;
+
+-- ============================================================
+-- PART 7: LINKTREE EXTRACTED ITEMS (ingestion metadata)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS linktree_extracted_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  canonical_url TEXT NOT NULL,
+  item_type TEXT NOT NULL, -- 'storefront', 'social', 'niche_signal', 'affiliate_link', 'other'
+  platform TEXT NOT NULL,
+  url TEXT NOT NULL,
+  display_name TEXT,
+  source TEXT NOT NULL DEFAULT 'linktree_scrape', -- 'linktree_api', 'linktree_scrape', 'beacons_scrape', 'manual'
+  confidence TEXT NOT NULL DEFAULT 'medium', -- 'high', 'medium', 'low'
+  first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  raw_fragment TEXT,
+  parser_version TEXT NOT NULL DEFAULT '1.0.0',
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(user_id, url)
+);
+
+CREATE INDEX IF NOT EXISTS idx_linktree_items_user ON linktree_extracted_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_linktree_items_type ON linktree_extracted_items(item_type);
+CREATE INDEX IF NOT EXISTS idx_linktree_items_canonical ON linktree_extracted_items(canonical_url);
+
+ALTER TABLE linktree_extracted_items ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "linktree_items_user_policy" ON linktree_extracted_items;
+CREATE POLICY "linktree_items_user_policy" ON linktree_extracted_items
+  FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Service role full access linktree items" ON linktree_extracted_items;
+CREATE POLICY "Service role full access linktree items" ON linktree_extracted_items
+  FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+
+DROP TRIGGER IF EXISTS update_linktree_items_updated_at ON linktree_extracted_items;
+CREATE TRIGGER update_linktree_items_updated_at
+  BEFORE UPDATE ON linktree_extracted_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE linktree_extracted_items IS 'Versioned extraction metadata from Linktree/link-in-bio pages';
+COMMENT ON COLUMN linktree_extracted_items.confidence IS 'high=direct API or verified pattern, medium=scraper match, low=heuristic/proxy';
+COMMENT ON COLUMN linktree_extracted_items.raw_fragment IS 'Raw scraped fragment for debugging when parser changes';
+COMMENT ON COLUMN linktree_extracted_items.parser_version IS 'Version of the parser that extracted this item';

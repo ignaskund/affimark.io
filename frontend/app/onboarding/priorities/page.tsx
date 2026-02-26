@@ -96,7 +96,7 @@ export default function PrioritiesOnboardingPage() {
       });
 
       // Navigate to dashboard
-      router.push('/dashboard');
+      router.push('/dashboard/product-finder');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
       setIsLoading(false);
@@ -111,7 +111,7 @@ export default function PrioritiesOnboardingPage() {
         credentials: 'include',
       });
     } catch (e) {}
-    router.push('/dashboard');
+    router.push('/dashboard/product-finder');
   };
 
   // Get labels for selected priorities
@@ -177,13 +177,14 @@ export default function PrioritiesOnboardingPage() {
 
         {/* Content */}
         <div className="glass-card p-8 animate-slide-up">
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             {step === 'product' && (
               <motion.div
                 key="product"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
               >
                 <PriorityRanker
                   type="product"
@@ -201,6 +202,7 @@ export default function PrioritiesOnboardingPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
               >
                 <PriorityRanker
                   type="brand"
@@ -218,6 +220,7 @@ export default function PrioritiesOnboardingPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
                 className="space-y-8"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

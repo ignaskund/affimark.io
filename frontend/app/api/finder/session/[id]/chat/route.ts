@@ -28,6 +28,18 @@ interface ChatRequest {
   };
 }
 
+function parseJsonField<T>(value: unknown, fallback: T): T {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return value as T;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,18 +93,18 @@ export async function POST(
 
     // Build social context from profile
     const socialContext = profileData ? {
-      platforms: JSON.parse(profileData.social_platforms || '[]'),
-      contentCategories: JSON.parse(profileData.content_categories || '[]'),
-      audienceDemographics: JSON.parse(profileData.audience_demographics || '{}'),
+      platforms: parseJsonField(profileData.social_platforms, [] as string[]),
+      contentCategories: parseJsonField(profileData.content_categories, [] as string[]),
+      audienceDemographics: parseJsonField(profileData.audience_demographics, {} as Record<string, any>),
       estimatedReach: profileData.estimated_reach || 0,
     } : undefined;
 
     // Build storefront context from profile
     const storefrontContext = profileData ? {
-      dominantCategories: JSON.parse(profileData.dominant_categories || '[]'),
-      topBrands: JSON.parse(profileData.top_brands || '[]'),
+      dominantCategories: parseJsonField(profileData.dominant_categories, [] as any[]),
+      topBrands: parseJsonField(profileData.top_brands, [] as string[]),
       avgPricePoint: profileData.avg_price_point || 0,
-      preferredNetworks: JSON.parse(profileData.preferred_networks || '[]'),
+      preferredNetworks: parseJsonField(profileData.preferred_networks, [] as string[]),
     } : undefined;
 
     // Call context-aware agent (via backend)

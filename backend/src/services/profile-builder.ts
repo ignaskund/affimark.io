@@ -4,14 +4,14 @@
  * Profiles are cached and refreshed periodically
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import { analyzeMultipleIntents, extractDominantCategories, ProductIntent } from './product-intent-analyzer';
+import { aiComplete } from './ai-client';
+import { analyzeMultipleNames, extractDominantCategories, ProductIntent } from './product-intent-analyzer';
 
 export interface UserProfile {
   userId: string;
 
   // From onboarding priorities (already in DB)
-  productPriorities: Array<{ id: string; rank: number }>;
+  productPriorities: Array<{ id: string; rank: number; weightMultiplier?: number }>;
   brandPriorities: Array<{ id: string; rank: number }>;
 
   // From social analysis (build ONCE, refresh monthly)
@@ -45,14 +45,7 @@ export interface UserProfile {
   confidenceScore: number; // 0-100
 }
 
-// Lazy-init: Cloudflare Workers don't have process.env at module scope
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic();
-  }
-  return _anthropic;
-}
+// AI client is initialized in ai-client.ts
 
 /**
  * Build or refresh user profile
@@ -110,14 +103,24 @@ export async function buildUserProfile(
 }
 
 /**
- * Get existing profile from DB
+ * Get existing profile from DB (via Supabase REST API)
  */
 async function getExistingProfile(userId: string, env: any): Promise<UserProfile | null> {
-  const result = await env.DB.prepare(
-    `SELECT * FROM user_product_profiles WHERE user_id = ?`
-  )
-    .bind(userId)
-    .first();
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/user_product_profiles?user_id=eq.${userId}`,
+    {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+  const result = Array.isArray(data) ? data[0] : null;
 
   if (!result) return null;
 
@@ -173,7 +176,7 @@ function isProfileStale(profile: UserProfile): boolean {
 async function getUserPriorities(userId: string, env: any) {
   // Query Supabase via REST API
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
   const response = await fetch(
     `${supabaseUrl}/rest/v1/user_creator_preferences?user_id=eq.${userId}&select=product_priorities,brand_priorities`,
@@ -186,7 +189,7 @@ async function getUserPriorities(userId: string, env: any) {
   );
 
   const data = await response.json();
-  const prefs = data[0];
+  const prefs = Array.isArray(data) ? data[0] : null;
 
   return {
     productPriorities: prefs?.product_priorities || [],
@@ -199,7 +202,7 @@ async function getUserPriorities(userId: string, env: any) {
  */
 async function analyzeSocialAccounts(userId: string, env: any) {
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
   // Get connected social accounts
   const response = await fetch(
@@ -214,7 +217,7 @@ async function analyzeSocialAccounts(userId: string, env: any) {
 
   const socials = await response.json();
 
-  if (!socials || socials.length === 0) {
+  if (!Array.isArray(socials) || socials.length === 0) {
     console.log('[Profile Builder] No social accounts connected');
     return {
       platforms: [],
@@ -266,15 +269,9 @@ Choose from: Electronics, Fashion, Beauty, Gaming, Tech, Lifestyle, Fitness, Foo
 
 Return only category names, comma-separated. Be concise.`;
 
-    const response = await getAnthropic().messages.create({
-      model: 'claude-3-5-haiku-20250219',
-      max_tokens: 100,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const content = response.content[0];
-    if (content.type === 'text') {
-      return content.text
+    const text = await aiComplete({ prompt, maxTokens: 100 });
+    if (text) {
+      return text
         .split(',')
         .map(c => c.trim())
         .filter(Boolean)
@@ -292,7 +289,7 @@ Return only category names, comma-separated. Be concise.`;
  */
 async function analyzeStorefronts(userId: string, env: any) {
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
   // Get affiliate transactions to understand product mix
   const response = await fetch(
@@ -307,7 +304,7 @@ async function analyzeStorefronts(userId: string, env: any) {
 
   const transactions = await response.json();
 
-  if (!transactions || transactions.length === 0) {
+  if (!Array.isArray(transactions) || transactions.length === 0) {
     console.log('[Profile Builder] No storefront data available');
     return {
       dominantCategories: [],
@@ -317,21 +314,42 @@ async function analyzeStorefronts(userId: string, env: any) {
     };
   }
 
-  // Extract product URLs from transaction data
-  const productUrls = transactions
-    .map((t: any) => t.product_id)
+  // Extract product names for AI categorization.
+  // product_name is a human-readable title (e.g. "Sony WH-1000XM5 Headphones"),
+  // which gives much better intent extraction than product_id (which may be an ASIN).
+  const productNames = transactions
+    .map((t: any) => t.product_name)
     .filter(Boolean)
-    .slice(0, 50); // Limit for AI analysis
+    .slice(0, 50);
 
-  // Use AI to categorize products
-  const intents = await analyzeMultipleIntents(productUrls);
+  // Categorize products by title using AI (falls back to keyword matching)
+  const intents = await analyzeMultipleNames(productNames, env);
   const dominantCategories = extractDominantCategories(intents);
 
-  // Calculate average price point
-  const avgRevenue =
-    transactions.reduce((sum: number, t: any) => sum + (parseFloat(t.revenue) || 0), 0) /
-    transactions.length;
-  const avgPricePoint = avgRevenue / 0.05; // Assume ~5% commission
+  // Calculate average price point using actual commission rates where available.
+  // revenue / (commission / revenue) = price  → avoids the "assume 5%" bias
+  // that inflated avgPricePoint 2× for creators on high-commission networks (Awin 10%+).
+  const transactionsWithBoth = transactions.filter(
+    (t: any) => (parseFloat(t.revenue) || 0) > 0 && (parseFloat(t.commission) || 0) > 0
+  );
+
+  let avgPricePoint: number;
+  if (transactionsWithBoth.length >= 3) {
+    const avgActualRate =
+      transactionsWithBoth.reduce((sum: number, t: any) => {
+        return sum + parseFloat(t.commission) / parseFloat(t.revenue);
+      }, 0) / transactionsWithBoth.length;
+    const avgRevenue =
+      transactionsWithBoth.reduce((sum: number, t: any) => sum + parseFloat(t.revenue), 0) /
+      transactionsWithBoth.length;
+    avgPricePoint = avgActualRate > 0 ? avgRevenue / avgActualRate : 0;
+  } else {
+    // Fallback: assume ~5% commission (only when both revenue and commission are unavailable)
+    const avgRevenue =
+      transactions.reduce((sum: number, t: any) => sum + (parseFloat(t.revenue) || 0), 0) /
+      transactions.length;
+    avgPricePoint = avgRevenue / 0.05;
+  }
 
   // Extract preferred networks
   const networkCounts = new Map<string, number>();
@@ -391,7 +409,7 @@ function calculateProfileConfidence(factors: {
  */
 async function storeUserProfile(profile: UserProfile, env: any) {
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
   const payload = {
     user_id: profile.userId,
@@ -411,13 +429,13 @@ async function storeUserProfile(profile: UserProfile, env: any) {
     updated_at: new Date().toISOString(),
   };
 
-  await fetch(`${supabaseUrl}/rest/v1/user_product_profiles`, {
+  await fetch(`${supabaseUrl}/rest/v1/user_product_profiles?on_conflict=user_id`, {
     method: 'POST',
     headers: {
       apikey: supabaseKey,
       Authorization: `Bearer ${supabaseKey}`,
       'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates',
+      Prefer: 'resolution=merge-duplicates,return=minimal',
     },
     body: JSON.stringify(payload),
   });

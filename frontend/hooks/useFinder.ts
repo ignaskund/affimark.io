@@ -26,6 +26,10 @@ interface UseFinderReturn {
   isSearching: boolean;
   isChatLoading: boolean;
   error: string | null;
+  lastSearchInput: string;
+  // Product identification
+  needsProductName: boolean;
+  pendingUrl: string;
 
   // User context
   productPriorities: Priority[];
@@ -61,6 +65,9 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
   const [isSearching, setIsSearching] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSearchInput, setLastSearchInput] = useState('');
+  const [needsProductName, setNeedsProductName] = useState(false);
+  const [pendingUrl, setPendingUrl] = useState('');
 
   // User context
   const [productPriorities, setProductPriorities] = useState<Priority[]>([]);
@@ -94,11 +101,10 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
         if (accountsRes.ok) {
           const data = await accountsRes.json();
           const accounts = data.accounts || [];
-          setAvailableSocials(
-            accounts
-              .filter((a: any) => ['youtube', 'instagram', 'twitter', 'tiktok'].includes(a.platform))
-              .map((a: any) => a.platform)
-          );
+          const socials = accounts
+            .filter((a: any) => ['youtube', 'instagram', 'twitter', 'tiktok'].includes(a.platform))
+            .map((a: any) => a.platform);
+          setAvailableSocials(Array.from(new Set(socials)));
         }
 
         // Load storefronts
@@ -108,7 +114,10 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
         if (storefrontsRes.ok) {
           const data = await storefrontsRes.json();
           const storefronts = data.storefronts || [];
-          setAvailableStorefronts(storefronts.map((s: any) => s.platform || s.name));
+          const storefrontPlatforms = storefronts
+            .map((s: any) => s.platform)
+            .filter((platform: string | undefined) => Boolean(platform));
+          setAvailableStorefronts(Array.from(new Set(storefrontPlatforms)));
         }
 
         // Load saved products
@@ -140,6 +149,9 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
   const search = useCallback(async (input: string, inputType: 'url' | 'category') => {
     setIsSearching(true);
     setError(null);
+    setNeedsProductName(false);
+    setPendingUrl('');
+    setLastSearchInput(input);
 
     try {
       const res = await fetch('/api/finder/search', {
@@ -159,6 +171,15 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
       }
 
       const data = await res.json();
+
+      // Product URL was submitted but backend couldn't identify the product.
+      // Ask the user to type the product name directly.
+      if (data.status === 'product_unidentified') {
+        setNeedsProductName(true);
+        setPendingUrl(data.pendingUrl || input);
+        setIsSearching(false);
+        return;
+      }
 
       setSession({
         id: data.sessionId,
@@ -183,9 +204,23 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
         updatedAt: new Date().toISOString(),
       });
 
-      setAlternatives(data.alternatives || []);
+      const alts = data.alternatives || [];
+      setAlternatives(alts);
       setCurrentIndex(0);
-      setChatMessages([]);
+
+      // Inject initial assistant message
+      const count = data.alternativesCount || alts.length;
+      setChatMessages(count > 0 ? [{
+        id: `msg-${Date.now()}-system`,
+        role: 'assistant' as const,
+        content: `Found ${count} products matching "${input}". Swipe through them on the right, or ask me anything about a product.`,
+        timestamp: new Date().toISOString(),
+      }] : [{
+        id: `msg-${Date.now()}-system`,
+        role: 'assistant' as const,
+        content: `I couldn't find products matching "${input}". Try a different URL or search term.`,
+        timestamp: new Date().toISOString(),
+      }]);
     } catch (err: any) {
       setError(err.message || 'Search failed');
     } finally {
@@ -421,6 +456,9 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
     isSearching,
     isChatLoading,
     error,
+    lastSearchInput,
+    needsProductName,
+    pendingUrl,
     productPriorities,
     brandPriorities,
     activeContext,

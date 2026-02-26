@@ -14,11 +14,10 @@ export async function GET() {
     }
 
     const { data: accounts, error } = await supabaseServer
-      .from('social_accounts')
+      .from('social_context_analysis')
       .select('*')
       .eq('user_id', session.user.id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+      .order('analyzed_at', { ascending: false });
 
     if (error) {
       console.error('[Social Accounts] Error fetching accounts:', error);

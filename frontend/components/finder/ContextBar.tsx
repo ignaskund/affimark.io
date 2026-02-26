@@ -1,31 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Youtube,
-  Instagram,
-  Twitter,
-  Globe,
-  Store,
   Settings2,
   ChevronDown,
   Check,
   X,
 } from 'lucide-react';
+import { getPlatformIcon, getPlatformColor } from '@/components/icons/PlatformIcons';
 import type { ActiveContext } from '@/types/finder';
-
-// Platform icons mapping
-const platformIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  youtube: Youtube,
-  instagram: Instagram,
-  twitter: Twitter,
-  tiktok: Globe, // Using Globe as placeholder
-  amazon: Store,
-  ltk: Store,
-  shopmy: Store,
-  awin: Store,
-};
 
 const platformLabels: Record<string, string> = {
   youtube: 'YouTube',
@@ -93,7 +77,8 @@ export default function ContextBar({
         {/* Quick toggles for active items */}
         <div className="flex items-center gap-2 flex-wrap flex-1">
           {activeContext.socials.map((social) => {
-            const Icon = platformIcons[social] || Globe;
+            const Icon = getPlatformIcon(social);
+            const colors = getPlatformColor(social);
             return (
               <motion.button
                 key={social}
@@ -101,7 +86,7 @@ export default function ContextBar({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => toggleSocial(social)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${colors.bg} border ${colors.border} ${colors.text} text-xs font-medium hover:brightness-125 transition-all`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 {platformLabels[social] || social}
@@ -111,7 +96,8 @@ export default function ContextBar({
           })}
 
           {activeContext.storefronts.map((storefront) => {
-            const Icon = platformIcons[storefront.split('_')[0]] || Store;
+            const Icon = getPlatformIcon(storefront);
+            const colors = getPlatformColor(storefront);
             return (
               <motion.button
                 key={storefront}
@@ -119,7 +105,7 @@ export default function ContextBar({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 onClick={() => toggleStorefront(storefront)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-colors"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${colors.bg} border ${colors.border} ${colors.text} text-xs font-medium hover:brightness-125 transition-all`}
               >
                 <Icon className="w-3.5 h-3.5" />
                 {platformLabels[storefront] || storefront}
@@ -195,7 +181,8 @@ export default function ContextBar({
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {availableSocials.map((social) => {
-                    const Icon = platformIcons[social] || Globe;
+                    const Icon = getPlatformIcon(social);
+                    const colors = getPlatformColor(social);
                     const isActive = activeContext.socials.includes(social);
                     return (
                       <button
@@ -203,7 +190,7 @@ export default function ContextBar({
                         onClick={() => toggleSocial(social)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
                           isActive
-                            ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                            ? `${colors.bg} ${colors.border} ${colors.text}`
                             : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600'
                         }`}
                       >
@@ -225,7 +212,8 @@ export default function ContextBar({
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {availableStorefronts.map((storefront) => {
-                    const Icon = platformIcons[storefront.split('_')[0]] || Store;
+                    const Icon = getPlatformIcon(storefront);
+                    const colors = getPlatformColor(storefront);
                     const isActive = activeContext.storefronts.includes(storefront);
                     return (
                       <button
@@ -233,7 +221,7 @@ export default function ContextBar({
                         onClick={() => toggleStorefront(storefront)}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
                           isActive
-                            ? 'bg-orange-500/20 border-orange-500/50 text-orange-400'
+                            ? `${colors.bg} ${colors.border} ${colors.text}`
                             : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:border-gray-600'
                         }`}
                       >

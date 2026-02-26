@@ -8,9 +8,6 @@ import {
   ChevronUp,
   ExternalLink,
   Star,
-  Truck,
-  RotateCcw,
-  Shield,
   Percent,
   Clock,
   ThumbsUp,
@@ -18,9 +15,88 @@ import {
   Bookmark,
   Calendar,
   TestTube,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  Package,
+  Building2,
 } from 'lucide-react';
 import MatchScore from './MatchScore';
 import type { AlternativeProduct } from '@/types/finder';
+
+import type { PriorityKpi } from '@/types/finder';
+
+const CONFIDENCE_BADGE: Record<string, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
+  high: { label: 'High', className: 'text-emerald-400', Icon: CheckCircle2 },
+  medium: { label: 'Med', className: 'text-amber-400', Icon: AlertCircle },
+  low: { label: 'Low', className: 'text-red-400', Icon: HelpCircle },
+};
+
+function KpiRow({ kpi, accentColor }: { kpi: PriorityKpi; accentColor: 'emerald' | 'orange' }) {
+  const scoreColor =
+    kpi.score >= 75
+      ? 'text-emerald-400'
+      : kpi.score >= 50
+      ? 'text-amber-400'
+      : 'text-red-400';
+
+  const conf = kpi.confidence ? CONFIDENCE_BADGE[kpi.confidence] : null;
+
+  return (
+    <div className="rounded-md border border-gray-700/60 bg-gray-900/30 p-2">
+      {/* Header: rank + label + score */}
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[11px] text-gray-300 font-medium truncate">
+          <span className="text-gray-500 mr-1">{kpi.rank}.</span>
+          {kpi.label}
+        </span>
+        <span className={`text-[11px] font-bold tabular-nums ${scoreColor}`}>
+          {kpi.score}
+        </span>
+      </div>
+
+      {/* Score bar */}
+      <div className="mt-1.5 h-1 rounded-full bg-gray-700 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${
+            kpi.score >= 75
+              ? 'bg-emerald-500'
+              : kpi.score >= 50
+              ? 'bg-amber-500'
+              : 'bg-red-500'
+          }`}
+          style={{ width: `${Math.min(100, kpi.score)}%` }}
+        />
+      </div>
+
+      {/* Evidence row: reason + confidence */}
+      <div className="mt-1.5 flex items-start justify-between gap-1">
+        <p className="text-[10px] text-gray-500 leading-tight flex-1">
+          {kpi.isProxy && <span className="text-amber-500/70 mr-0.5">~</span>}
+          {kpi.reason}
+        </p>
+        {conf && (
+          <span className={`flex items-center gap-0.5 text-[9px] font-medium ${conf.className} flex-shrink-0`}>
+            <conf.Icon className="w-2.5 h-2.5" />
+            {conf.label}
+          </span>
+        )}
+      </div>
+
+      {/* Evidence source + timestamp */}
+      {(kpi.evidenceLabel || kpi.checkedAt) && (
+        <div className="mt-1 flex items-center gap-1.5 text-[9px] text-gray-600">
+          {kpi.evidenceLabel && (
+            <span className="truncate">{kpi.evidenceLabel}</span>
+          )}
+          {kpi.checkedAt && (
+            <span className="flex-shrink-0">&middot; {kpi.checkedAt}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ProductCardProps {
   product: AlternativeProduct;
@@ -87,12 +163,35 @@ export default function ProductCard({
           {product.name}
         </h3>
 
-        {/* Match reasons (collapsed view) */}
-        {!isExpanded && product.matchReasons.length > 0 && (
-          <p className="text-sm text-gray-400 line-clamp-2">
-            {product.matchReasons[0]}
-          </p>
-        )}
+        {/* Collapsed: show top 2 priority matches as chips */}
+        {!isExpanded && (() => {
+          const allKpis = [
+            ...(product.productPriorityKpis || []),
+            ...(product.brandPriorityKpis || []),
+          ];
+          const topChips = allKpis
+            .filter(k => k.score >= 65)
+            .sort((a, b) => a.rank - b.rank)
+            .slice(0, 2);
+
+          if (topChips.length > 0) {
+            return (
+              <div className="flex flex-wrap gap-1.5">
+                {topChips.map(kpi => (
+                  <span key={kpi.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400">
+                    <span className="font-bold">#{kpi.rank}</span>
+                    {kpi.label}
+                    <span className="font-bold">{kpi.score}</span>
+                  </span>
+                ))}
+              </div>
+            );
+          }
+
+          return product.matchReasons.length > 0 ? (
+            <p className="text-sm text-gray-400 line-clamp-2">{product.matchReasons[0]}</p>
+          ) : null;
+        })()}
 
         {/* Price and rating row */}
         <div className="flex items-center justify-between">
@@ -136,55 +235,123 @@ export default function ProductCard({
               exit={{ opacity: 0, height: 0 }}
               className="space-y-4 pt-2"
             >
-              {/* Why it matches */}
-              <div className="p-3 rounded-lg bg-gray-800/50 border border-gray-700">
-                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                  Why This Matches You
-                </h4>
-                <ul className="space-y-1.5">
-                  {product.matchReasons.map((reason, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <ThumbsUp className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {/* === PERSONALIZATION NARRATIVE === */}
+              {/* Show top priorities this product satisfies — explicit "why for you" */}
+              {(() => {
+                const allKpis = [
+                  ...(product.productPriorityKpis || []),
+                  ...(product.brandPriorityKpis || []),
+                ];
+                const topMatches = allKpis
+                  .filter(k => k.score >= 65)
+                  .sort((a, b) => a.rank - b.rank)
+                  .slice(0, 4);
 
-              {/* Priority alignment */}
-              {product.priorityAlignment && Object.keys(product.priorityAlignment).length > 0 && (
+                if (topMatches.length === 0) return null;
+
+                return (
+                  <div className="p-3 rounded-lg bg-gradient-to-br from-emerald-900/20 to-gray-900/40 border border-emerald-700/30">
+                    <h4 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2.5">
+                      Why this is right for you
+                    </h4>
+                    <div className="space-y-1.5">
+                      {topMatches.map((kpi) => (
+                        <div key={kpi.id} className="flex items-start gap-2">
+                          <div className="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <span className="text-[9px] font-bold text-emerald-400">{kpi.rank}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs text-white font-medium">{kpi.label}</span>
+                            <span className="text-xs text-gray-400"> — </span>
+                            <span className="text-xs text-gray-400">{kpi.reason}</span>
+                          </div>
+                          <span className={`flex-shrink-0 text-[11px] font-bold tabular-nums ${
+                            kpi.score >= 75 ? 'text-emerald-400' : 'text-amber-400'
+                          }`}>{kpi.score}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Why it matches (fallback if no KPIs) */}
+              {(!product.productPriorityKpis?.length && !product.brandPriorityKpis?.length) &&
+                product.matchReasons.length > 0 && (
                 <div className="p-3 rounded-lg bg-gray-800/50 border border-gray-700">
                   <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    Priority Match
+                    Why This Matches You
                   </h4>
-                  <MatchScore
-                    score={product.matchScore}
-                    alignment={product.priorityAlignment}
-                    expanded={true}
-                    showLabel={false}
-                    size="sm"
-                  />
+                  <ul className="space-y-1.5">
+                    {product.matchReasons.map((reason, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                        <ThumbsUp className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
-              {/* Product details */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Two-column KPI split: Product (left) / Brand (right) */}
+              {(product.productPriorityKpis?.length || product.brandPriorityKpis?.length) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {/* LEFT: Product KPIs */}
+                  <div className="rounded-lg bg-gray-800/50 border border-gray-700 p-3">
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <Package className="w-3.5 h-3.5 text-emerald-400" />
+                      <h4 className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">
+                        Product
+                      </h4>
+                    </div>
+                    <div className="space-y-2">
+                      {(product.productPriorityKpis || []).map((kpi) => (
+                        <KpiRow key={`product-${kpi.id}`} kpi={kpi} accentColor="emerald" />
+                      ))}
+                      {(!product.productPriorityKpis || product.productPriorityKpis.length === 0) && (
+                        <p className="text-[11px] text-gray-600 italic">No product priorities set</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* RIGHT: Brand KPIs */}
+                  <div className="rounded-lg bg-gray-800/50 border border-gray-700 p-3">
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <Building2 className="w-3.5 h-3.5 text-orange-400" />
+                      <h4 className="text-[11px] font-semibold text-orange-400 uppercase tracking-wider">
+                        Brand
+                      </h4>
+                    </div>
+                    <div className="space-y-2">
+                      {(product.brandPriorityKpis || []).map((kpi) => (
+                        <KpiRow key={`brand-${kpi.id}`} kpi={kpi} accentColor="orange" />
+                      ))}
+                      {(!product.brandPriorityKpis || product.brandPriorityKpis.length === 0) && (
+                        <p className="text-[11px] text-gray-600 italic">No brand priorities set</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Product details row */}
+              <div className="flex flex-wrap gap-3">
                 {product.affiliateNetwork && (
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <ExternalLink className="w-4 h-4" />
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-md px-2 py-1">
+                    <ExternalLink className="w-3.5 h-3.5" />
                     {product.affiliateNetwork}
                   </div>
                 )}
                 {product.commissionRate && (
-                  <div className="flex items-center gap-2 text-sm text-emerald-400">
-                    <Percent className="w-4 h-4" />
-                    {product.commissionRate}% commission
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 rounded-md px-2 py-1">
+                    <Percent className="w-3.5 h-3.5" />
+                    {product.commissionRate}%
                   </div>
                 )}
                 {product.cookieDurationDays && (
-                  <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <Clock className="w-4 h-4" />
-                    {product.cookieDurationDays} day cookie
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-gray-800/50 rounded-md px-2 py-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {product.cookieDurationDays}d cookie
                   </div>
                 )}
               </div>

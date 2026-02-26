@@ -205,10 +205,10 @@ function scoreProgramFriction(
     dataSources.push('commission_data');
   }
 
-  // Missing program terms is a red flag
+  // Missing program terms: mild caution, not a hard penalty.
+  // Aggregator feeds typically don't include program details.
   if (!product.programTermsUrl && !product.commissionRate) {
-    score -= 20;
-    warnings.push('Program terms unavailable - requires manual verification');
+    score -= 5;
   }
 
   return Math.max(0, Math.min(100, score));
@@ -222,9 +222,8 @@ function scoreDemandEvidence(
   dataSources: string[],
   warnings: string[]
 ): number {
-  let score = 40; // Conservative default
+  let score = 45; // Neutral-ish default
 
-  // Review count is the strongest demand signal
   if (product.reviewCount !== undefined) {
     if (product.reviewCount >= 5000) {
       score += 40;
@@ -239,15 +238,13 @@ function scoreDemandEvidence(
       warnings.push('Very few reviews - limited demand evidence');
     }
     dataSources.push('review_count');
-  } else {
-    // No review count = weak evidence
-    score -= 20;
   }
+  // No reviewCount = data simply unavailable (common for aggregator feeds).
+  // Don't penalize — absence of data is not evidence of absence.
 
-  // Rating quality (with review count context)
   if (product.rating !== undefined && product.reviewCount !== undefined) {
     if (product.rating >= 4.5 && product.reviewCount >= 100) {
-      score += 20; // Strong positive signal
+      score += 20;
     } else if (product.rating >= 4.0 && product.reviewCount >= 50) {
       score += 10;
     } else if (product.rating < 3.5) {
@@ -257,12 +254,10 @@ function scoreDemandEvidence(
     dataSources.push('rating_with_volume');
   }
 
-  // Price point proxy for demand
-  // Very high prices (>€1000) have smaller markets
   if (product.price > 1000) {
-    score -= 10; // Harder to convert
+    score -= 10;
   } else if (product.price >= 100 && product.price <= 500) {
-    score += 10; // Sweet spot for affiliate sales
+    score += 10;
   }
 
   return Math.max(0, Math.min(100, score));
@@ -353,38 +348,30 @@ export function canRecommendProduct(score: OutcomeFeasibilityScore): {
   reason?: string;
   requiresWarning?: boolean;
 } {
-  // Hard rejection thresholds
-  if (score.overall < 40) {
+  // Hard rejection: only reject when we have STRONG negative signal
+  if (score.overall < 25) {
     return {
       canRecommend: false,
       reason: 'Overall outcome feasibility too low (business risk)',
     };
   }
 
-  if (score.merchantRisk < 30) {
+  if (score.merchantRisk < 20) {
     return {
       canRecommend: false,
       reason: 'Merchant reliability concerns',
     };
   }
 
-  if (score.demandEvidence < 25) {
+  if (score.demandEvidence < 15) {
     return {
       canRecommend: false,
       reason: 'Insufficient demand evidence',
     };
   }
 
-  // Conditional acceptance with warning
-  if (score.overall >= 40 && score.overall < 60) {
-    return {
-      canRecommend: true,
-      requiresWarning: true,
-      reason: 'Moderate outcome feasibility - verify before promoting',
-    };
-  }
-
-  if (score.confidence < 50) {
+  // Conditional acceptance with warning (show user but flag for review)
+  if (score.overall < 50 || score.confidence < 40) {
     return {
       canRecommend: true,
       requiresWarning: true,
@@ -392,6 +379,5 @@ export function canRecommendProduct(score: OutcomeFeasibilityScore): {
     };
   }
 
-  // Clear acceptance
   return { canRecommend: true };
 }

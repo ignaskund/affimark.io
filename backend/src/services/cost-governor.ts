@@ -55,16 +55,16 @@ type OperationType = keyof typeof OPERATION_COSTS;
 // Budget tiers by user plan
 const BUDGET_TIERS: Record<string, CostBudget> = {
   'free': {
-    dailyBudgetUSD: 0.10, // $0.10/day = ~$3/month
-    monthlyBudgetUSD: 3.00,
+    dailyBudgetUSD: 1.00, // $1.00/day — generous enough for dev/testing
+    monthlyBudgetUSD: 10.00,
   },
   'pro': {
-    dailyBudgetUSD: 0.50, // $0.50/day = ~$15/month
-    monthlyBudgetUSD: 15.00,
+    dailyBudgetUSD: 5.00,
+    monthlyBudgetUSD: 50.00,
   },
   'enterprise': {
-    dailyBudgetUSD: 5.00, // $5/day = ~$150/month
-    monthlyBudgetUSD: 150.00,
+    dailyBudgetUSD: 50.00,
+    monthlyBudgetUSD: 500.00,
   },
 };
 
@@ -146,10 +146,23 @@ export async function logOperationCost(
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    // Insert into cost tracking table
-    const { error } = await env.supabase
-      .from('user_operation_costs')
-      .insert({
+    const supabaseUrl = env.SUPABASE_URL;
+    const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('[Cost Governor] No Supabase credentials, skipping cost log');
+      return;
+    }
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/user_operation_costs`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
         user_id: userId,
         operation_type: operationType,
         operation_date: today,
@@ -157,10 +170,12 @@ export async function logOperationCost(
         tokens_used: metadata.tokensUsed || 0,
         model_used: metadata.modelUsed || '',
         session_id: metadata.sessionId,
-      });
+      }),
+    });
 
-    if (error) {
-      console.error('[Cost Governor] Failed to log cost:', error);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Cost Governor] Failed to log cost:', errorText);
     } else {
       console.log(`[Cost Governor] Logged $${costEstimate.toFixed(4)} for ${operationType}`);
     }
@@ -187,24 +202,40 @@ async function getUserUsage(userId: string, env: any): Promise<CostUsage> {
   startOfMonth.setDate(1);
   const monthStart = startOfMonth.toISOString().split('T')[0];
 
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    // No credentials — fail open
+    return { dailyUsed: 0, monthlyUsed: 0, remainingDaily: 999, remainingMonthly: 999 };
+  }
+
   try {
     // Get daily usage
-    const { data: dailyData, error: dailyError } = await env.supabase
-      .from('user_operation_costs')
-      .select('cost_estimate_usd')
-      .eq('user_id', userId)
-      .eq('operation_date', today);
-
-    const dailyUsed = dailyData?.reduce((sum: number, row: any) => sum + (parseFloat(row.cost_estimate_usd) || 0), 0) || 0;
+    const dailyRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_operation_costs?select=cost_estimate_usd&user_id=eq.${userId}&operation_date=eq.${today}`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
+    );
+    const dailyData: any[] = dailyRes.ok ? await dailyRes.json() : [];
+    const dailyUsed = dailyData.reduce((sum, row) => sum + (parseFloat(row.cost_estimate_usd) || 0), 0);
 
     // Get monthly usage
-    const { data: monthlyData, error: monthlyError } = await env.supabase
-      .from('user_operation_costs')
-      .select('cost_estimate_usd')
-      .eq('user_id', userId)
-      .gte('operation_date', monthStart);
-
-    const monthlyUsed = monthlyData?.reduce((sum: number, row: any) => sum + (parseFloat(row.cost_estimate_usd) || 0), 0) || 0;
+    const monthlyRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_operation_costs?select=cost_estimate_usd&user_id=eq.${userId}&operation_date=gte.${monthStart}`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
+    );
+    const monthlyData: any[] = monthlyRes.ok ? await monthlyRes.json() : [];
+    const monthlyUsed = monthlyData.reduce((sum, row) => sum + (parseFloat(row.cost_estimate_usd) || 0), 0);
 
     const budget = getUserBudget(userId, env);
 
@@ -239,16 +270,28 @@ export async function getCostBreakdown(
   byOperationType: Record<string, number>;
   byDate: Record<string, number>;
 }> {
-  const { data, error } = await env.supabase
-    .from('user_operation_costs')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('operation_date', startDate)
-    .lte('operation_date', endDate);
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
-  if (error || !data) {
+  if (!supabaseUrl || !supabaseKey) {
     return { totalCost: 0, byOperationType: {}, byDate: {} };
   }
+
+  const res = await fetch(
+    `${supabaseUrl}/rest/v1/user_operation_costs?select=*&user_id=eq.${userId}&operation_date=gte.${startDate}&operation_date=lte.${endDate}`,
+    {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    return { totalCost: 0, byOperationType: {}, byDate: {} };
+  }
+
+  const data: any[] = await res.json();
 
   const totalCost = data.reduce((sum, row) => sum + parseFloat(row.cost_estimate_usd || 0), 0);
 

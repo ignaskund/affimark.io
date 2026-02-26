@@ -318,12 +318,27 @@ function categorizeLinks(links: any[]): CategorizedLinks {
     'liketk.it': { name: 'LTK', icon: '🛍️', platform: 'ltk' },
     'ltk.app': { name: 'LTK', icon: '🛍️', platform: 'ltk' },
     'liketoknow.it': { name: 'LTK', icon: '🛍️', platform: 'ltk' },
+    'ltk.to': { name: 'LTK', icon: '🛍️', platform: 'ltk' },
+    'ltk.app.link': { name: 'LTK', icon: '🛍️', platform: 'ltk' },
     'shopmy.us': { name: 'ShopMy', icon: '🛒', platform: 'shopmy' },
     'shop-links.co': { name: 'Shop Links', icon: '🛒', platform: 'shoplinks' },
     'rstyle.me': { name: 'ShopStyle', icon: '👗', platform: 'shopstyle' },
     'shopstyle.it': { name: 'ShopStyle', icon: '👗', platform: 'shopstyle' },
     'howl.me': { name: 'Howl', icon: '🐺', platform: 'howl' },
     'stan.store': { name: 'Stan Store', icon: '⭐', platform: 'stan' },
+  };
+
+  const extractNestedUrl = (rawUrl: string): string | null => {
+    try {
+      const parsed = new URL(rawUrl);
+      const nested = parsed.searchParams.get('url') || parsed.searchParams.get('u') || parsed.searchParams.get('target');
+      if (!nested) return null;
+      const decoded = decodeURIComponent(nested);
+      if (decoded.startsWith('http://') || decoded.startsWith('https://')) return decoded.toLowerCase();
+      return null;
+    } catch {
+      return null;
+    }
   };
 
   // Define social media patterns
@@ -347,11 +362,13 @@ function categorizeLinks(links: any[]): CategorizedLinks {
 
   for (const link of links) {
     const lowerUrl = link.url.toLowerCase();
+    const nestedUrl = extractNestedUrl(link.url);
+    const candidateUrls = nestedUrl ? [lowerUrl, nestedUrl] : [lowerUrl];
     let matched = false;
 
     // Check for social media first (we want to categorize socials even if they're on the skip list)
     for (const [pattern, social] of Object.entries(socialPatterns)) {
-      if (lowerUrl.includes(pattern)) {
+      if (candidateUrls.some((candidateUrl) => candidateUrl.includes(pattern))) {
         socialMedia.push({
           name: social.name,
           icon: social.icon,
@@ -366,7 +383,7 @@ function categorizeLinks(links: any[]): CategorizedLinks {
 
     // Check for storefronts
     for (const [pattern, storefront] of Object.entries(storefrontPatterns)) {
-      if (lowerUrl.includes(pattern)) {
+      if (candidateUrls.some((candidateUrl) => candidateUrl.includes(pattern))) {
         const key = storefront.platform;
 
         if (!storefrontMap.has(key)) {

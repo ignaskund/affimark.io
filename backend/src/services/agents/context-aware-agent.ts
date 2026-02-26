@@ -3,7 +3,7 @@
  * Agent that understands and uses active context (socials/storefronts) in conversations
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiChat } from '../ai-client';
 
 export interface AgentContext {
   // User priorities
@@ -59,14 +59,7 @@ export interface ChatMessage {
   content: string;
 }
 
-// Lazy-init: Cloudflare Workers don't have process.env at module scope
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic();
-  }
-  return _anthropic;
-}
+// AI client is initialized in ai-client.ts
 
 const PRIORITY_LABELS: Record<string, string> = {
   // Product priorities
@@ -101,22 +94,21 @@ export async function generateAgentResponse(
   const systemPrompt = buildContextAwareSystemPrompt(context);
 
   try {
-    const response = await getAnthropic().messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 600,
+    const chatMessages = [
+      ...conversationHistory.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+      { role: 'user' as const, content: userMessage },
+    ];
+
+    const response = await aiChat({
       system: systemPrompt,
-      messages: [
-        ...conversationHistory.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
-        { role: 'user', content: userMessage },
-      ],
+      messages: chatMessages,
+      maxTokens: 600,
     });
 
-    return response.content[0]?.type === 'text'
-      ? response.content[0].text
-      : 'I apologize, I could not generate a response.';
+    return response || 'I apologize, I could not generate a response.';
   } catch (error) {
     console.error('[Context-Aware Agent] Error:', error);
     return generateFallbackResponse(userMessage, context);

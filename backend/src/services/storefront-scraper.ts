@@ -39,7 +39,13 @@ export async function scrapeStorefront(
     const lowerUrl = url.toLowerCase();
 
     // Determine platform and route to appropriate scraper
-    if (lowerUrl.includes('shopltk.com') || lowerUrl.includes('liketk.it') || lowerUrl.includes('ltk.app')) {
+    if (
+        lowerUrl.includes('shopltk.com') ||
+        lowerUrl.includes('liketoknow.it') ||
+        lowerUrl.includes('ltk.to') ||
+        lowerUrl.includes('ltk.app') ||
+        lowerUrl.includes('ltk.app.link')
+    ) {
         return scrapeLTKStorefront(url, maxProducts);
     }
 

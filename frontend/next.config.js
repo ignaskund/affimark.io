@@ -14,8 +14,8 @@ const nextConfig = {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8787';
     return [
       {
-        // Exclude NextAuth routes from proxy - they should be handled by Next.js
-        source: '/api/:path((?!auth/session|auth/providers|auth/signin|auth/signout|auth/callback|auth/csrf).*)',
+        // Exclude NextAuth and local Next.js API routes from proxy.
+        source: '/api/:path((?!auth/session|auth/providers|auth/signin|auth/signout|auth/callback|auth/csrf|finder/search|finder/saved|finder/session|preferences/priorities|social-accounts|storefronts).*)',
         destination: `${apiUrl}/api/:path*`,
       },
     ];

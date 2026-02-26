@@ -71,6 +71,21 @@ export interface AlternativeProduct extends ProductData {
   cookieDurationDays?: number;
   pros: string[];
   cons: string[];
+  productPriorityKpis?: PriorityKpi[];
+  brandPriorityKpis?: PriorityKpi[];
+}
+
+export interface PriorityKpi {
+  id: string;
+  label: string;
+  rank: number;
+  score: number;
+  reason: string;
+  confidence?: 'high' | 'medium' | 'low';
+  evidenceLabel?: string;
+  evidenceSource?: string;
+  checkedAt?: string;
+  isProxy?: boolean;
 }
 
 export interface PriorityAlignment {

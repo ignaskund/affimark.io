@@ -13,6 +13,8 @@ import { generateContextHash, generateContextLabel } from '../services/context-h
 import { checkBudget, logOperationCost } from '../services/cost-governor';
 
 const app = new Hono();
+const TOP_RESULTS_LIMIT = 5;
+const SEARCH_TIME_BUDGET_MS = 15000;
 
 // Enable CORS for frontend
 app.use('/*', cors({
@@ -33,7 +35,7 @@ app.use('/*', cors({
  * POST /api/finder/search
  * Main search endpoint - finds product alternatives based on user context
  */
-app.post('/api/finder/search', async (c) => {
+app.post('/search', async (c) => {
   const startTime = Date.now();
 
   try {
@@ -63,11 +65,6 @@ app.post('/api/finder/search', async (c) => {
     if (!budgetCheck.allowed) {
       return c.json({ error: budgetCheck.message }, 429); // Too Many Requests
     }
-
-    // Generate context hash for toggle change detection (Fix #6)
-    const contextHash = generateContextHash(activeContext);
-    const contextLabel = generateContextLabel(activeContext);
-    console.log(`[Finder Search] Context: "${contextLabel}" (hash: ${contextHash})`);
 
     // STEP 1: Build or get user profile
     console.log('[Finder Search] Step 1: Building user profile...');
@@ -108,63 +105,105 @@ app.post('/api/finder/search', async (c) => {
     let productIntent;
 
     if (inputType === 'url') {
-      productIntent = await analyzeProductIntent(input);
+      productIntent = await analyzeProductIntent(input, c.env);
       console.log(`[Finder Search] Product intent: ${productIntent.category} - ${productIntent.subcategory}`);
       console.log(`[Finder Search] Detected brand: ${productIntent.brand || 'Unknown'}`);
+
+      // If we couldn't identify the product at all, return a clear error
+      // instead of hallucinating a category and returning irrelevant results.
+      if (productIntent.confidence < 20 || productIntent.searchQuery === productIntent.category) {
+        console.warn('[Finder Search] Product identification failed — not enough info to search');
+        return c.json({
+          alternatives: [],
+          alternativesCount: 0,
+          status: 'product_unidentified',
+          error: 'We couldn\'t identify this product from the URL. Try pasting the product name directly, or use a URL that includes the product name (e.g. amazon.com/Sony-Headphones/dp/B09X...).',
+          intent: productIntent,
+          meta: { duration: Date.now() - startTime },
+        });
+      }
     } else {
-      // Category search
-      productIntent = {
-        category: input,
-        searchQuery: input,
-        keywords: input.split(' '),
-        confidence: 80,
-      };
-      console.log(`[Finder Search] Category search: ${input}`);
+      // Category / text search — use AI or keyword matching to determine product category
+      // e.g. "milk cosmetics" → category: "Beauty & Health", searchQuery: "milk cosmetics"
+      productIntent = await analyzeCategorySearch(input, c.env);
+      console.log(`[Finder Search] Category search: "${input}" → category: ${productIntent.category}`);
     }
 
     // STEP 5: Search across networks and score
     console.log('[Finder Search] Step 4: Searching across networks...');
-    const alternatives = await searchAllNetworks(
-      productIntent,
-      adjustedProfile,
-      c.env,
+    const runSearchWithBudget = async (
+      searchOptions: { limit: number; excludeOriginalBrand: boolean },
+      budgetMs: number
+    ) => {
+      return await Promise.race([
+        searchAllNetworks(productIntent, adjustedProfile, c.env, searchOptions),
+        new Promise<any[]>((_, reject) =>
+          setTimeout(() => reject(new Error(`Search timed out after ${budgetMs}ms`)), budgetMs)
+        ),
+      ]);
+    };
+
+    let alternatives = await runSearchWithBudget(
       {
         limit: 50,
-        excludeOriginalBrand: inputType === 'url' && dynamicIntent.excludeOriginalBrand !== false,
-      }
+        // Default ON: users are looking for alternatives, not same-brand variants.
+        // Can be explicitly disabled with dynamicIntent.excludeOriginalBrand = false.
+        excludeOriginalBrand: dynamicIntent.excludeOriginalBrand !== false,
+      },
+      SEARCH_TIME_BUDGET_MS
     );
+
+    const elapsedAfterStrict = Date.now() - startTime;
+    const remainingBudget = SEARCH_TIME_BUDGET_MS - elapsedAfterStrict;
+
+    // Guarantee a usable set: if strict filtering yields too few options,
+    // run a relaxed pass and top up to at least 5.
+    if (alternatives.length < 5 && remainingBudget > 3000) {
+      console.log(
+        `[Finder Search] Only ${alternatives.length} alternatives after strict pass, running relaxed fallback (remaining budget: ${remainingBudget}ms)`
+      );
+      const relaxedAlternatives = await runSearchWithBudget(
+        {
+          limit: 50,
+          excludeOriginalBrand: false,
+        },
+        remainingBudget
+      );
+
+      const merged = new Map<string, any>();
+      for (const item of alternatives) {
+        merged.set(item.id || item.url, item);
+      }
+      for (const item of relaxedAlternatives) {
+        const key = item.id || item.url;
+        if (!merged.has(key)) merged.set(key, item);
+      }
+
+      alternatives = Array.from(merged.values());
+      console.log(`[Finder Search] Relaxed fallback merged total: ${alternatives.length}`);
+    } else if (alternatives.length < 5) {
+      console.log(
+        `[Finder Search] Skipping relaxed fallback due to budget. alternatives=${alternatives.length}, remaining=${remainingBudget}ms`
+      );
+    }
 
     console.log(`[Finder Search] Found ${alternatives.length} alternatives`);
 
-    // STEP 6: Create session in Supabase
-    console.log('[Finder Search] Step 5: Creating session...');
-    const session = await createFinderSession(
-      userId,
-      input,
-      inputType,
-      userProfile,
-      activeContext,
-      contextHash,
-      contextLabel,
-      productIntent,
-      alternatives,
-      analyzedDynamicIntent,
-      c.env
-    );
+    // Session creation is handled by the frontend API route
+    // Backend only returns search results
 
     const duration = Date.now() - startTime;
     console.log(`[Finder Search] ✓ Complete in ${duration}ms`);
 
     // Log operation cost (Fix #8)
-    await logOperationCost(userId, budgetCheck.degradeMode === 'cached' ? 'search_cached' : 'search_full', {
-      sessionId: session.id,
-    }, c.env);
+    await logOperationCost(userId, budgetCheck.degradeMode === 'cached' ? 'search_cached' : 'search_full', {}, c.env);
 
     // Return results
+    const topAlternatives = alternatives.slice(0, TOP_RESULTS_LIMIT);
+
     return c.json({
-      sessionId: session.id,
-      alternatives: alternatives.slice(0, 20), // Top 20 for UI
-      alternativesCount: alternatives.length,
+      alternatives: topAlternatives,
+      alternativesCount: topAlternatives.length,
       profile: {
         confidenceScore: userProfile.confidenceScore,
         socialContext: userProfile.socialContext,
@@ -197,7 +236,7 @@ app.post('/api/finder/search', async (c) => {
  * POST /api/finder/profile/build
  * Manually trigger profile build/refresh
  */
-app.post('/api/finder/profile/build', async (c) => {
+app.post('/profile/build', async (c) => {
   try {
     const body = await c.req.json();
     const { userId, forceRefresh = false } = body;
@@ -229,12 +268,12 @@ app.post('/api/finder/profile/build', async (c) => {
  * GET /api/finder/profile/:userId
  * Get cached user profile
  */
-app.get('/api/finder/profile/:userId', async (c) => {
+app.get('/profile/:userId', async (c) => {
   try {
     const userId = c.req.param('userId');
 
     const supabaseUrl = c.env.SUPABASE_URL;
-    const supabaseKey = c.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = c.env.SUPABASE_SERVICE_KEY;
 
     const response = await fetch(
       `${supabaseUrl}/rest/v1/user_product_profiles?user_id=eq.${userId}`,
@@ -293,7 +332,7 @@ app.get('/api/finder/profile/:userId', async (c) => {
  * POST /api/finder/intent/analyze
  * Analyze product intent from URL (for testing/debugging)
  */
-app.post('/api/finder/intent/analyze', async (c) => {
+app.post('/intent/analyze', async (c) => {
   try {
     const body = await c.req.json();
     const { url } = body;
@@ -302,7 +341,7 @@ app.post('/api/finder/intent/analyze', async (c) => {
       return c.json({ error: 'url is required' }, 400);
     }
 
-    const intent = await analyzeProductIntent(url);
+    const intent = await analyzeProductIntent(url, c.env);
 
     return c.json({ intent });
   } catch (error: any) {
@@ -331,7 +370,7 @@ async function createFinderSession(
   env: any
 ): Promise<any> {
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
   const sessionData = {
     user_id: userId,
@@ -340,25 +379,14 @@ async function createFinderSession(
     product_priorities_snapshot: JSON.stringify(profile.productPriorities),
     brand_priorities_snapshot: JSON.stringify(profile.brandPriorities),
     active_context_snapshot: JSON.stringify(activeContext),
-    active_context_hash: contextHash, // NEW: Fix #6
-    // Store context label in original_product metadata for display
-    context_label: contextLabel,
     original_product: inputType === 'url' ? JSON.stringify({
       intent: productIntent,
       url: input,
     }) : null,
     alternatives: JSON.stringify(alternatives),
     alternatives_count: alternatives.length,
-    current_index: 0,
-    viewed_alternatives: JSON.stringify([]),
-    saved_alternatives: JSON.stringify([]),
-    skipped_alternatives: JSON.stringify([]),
-    chat_messages: JSON.stringify([]),
     status: 'ready',
-    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    // Store dynamic intent for context
-    dynamic_intent_snapshot: JSON.stringify(dynamicIntent),
   };
 
   const response = await fetch(`${supabaseUrl}/rest/v1/product_finder_sessions`, {
@@ -379,6 +407,89 @@ async function createFinderSession(
 
   const data = await response.json();
   return data[0];
+}
+
+/**
+ * Helper: Analyze a free-text category search to extract proper product category
+ * e.g. "milk cosmetics" → { category: "Beauty", searchQuery: "milk cosmetics", ... }
+ */
+async function analyzeCategorySearch(input: string, env: any): Promise<any> {
+  // If input looks like a product name (not a URL), use AI directly
+  const apiKey = env?.OPENAI_API_KEY ||
+    (typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined);
+  if (apiKey && input.length > 3 && !input.includes('http')) {
+    try {
+      const { aiComplete, extractJson } = await import('../services/ai-client');
+      const text = await aiComplete({
+        prompt: `You are a product search expert. The user wants to find alternatives for: "${input}"
+
+Extract structured search intent:
+1. Primary category: Electronics, Fashion, Home & Garden, Beauty & Health, Sports & Outdoors, Toys & Games, Books & Media, Food & Beverage, Automotive, Pet Supplies, Office & School, Arts & Crafts
+2. Specific subcategory
+3. Brand (if mentioned, else null)
+4. A clean 3-5 word search query (no brand name) to find similar products in an affiliate feed
+
+Return ONLY valid JSON:
+{"category": "...", "subcategory": "...", "brand": null, "searchQuery": "...", "keywords": ["..."], "priceRange": "mid-range", "confidence": 85}`,
+        maxTokens: 200,
+        apiKey,
+      });
+      const intent = extractJson(text);
+      if (intent?.category && intent?.searchQuery) {
+        console.log(`[Category Analyzer] AI: "${input}" → "${intent.searchQuery}" (${intent.category})`);
+        return intent;
+      }
+    } catch { /* fall through to keyword matching */ }
+  }
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    'Beauty': ['beauty', 'cosmetic', 'skincare', 'makeup', 'skin', 'face', 'lip', 'nail', 'hair', 'fragrance', 'perfume', 'serum', 'cream', 'lotion', 'moisturizer', 'shampoo', 'conditioner', 'mask', 'cleanser', 'toner', 'foundation', 'mascara', 'eyeshadow', 'blush', 'concealer', 'primer', 'sunscreen', 'spf', 'body wash', 'soap', 'exfoliant', 'oil', 'balm', 'milk'],
+    'Electronics': ['electronics', 'headphone', 'speaker', 'phone', 'laptop', 'tablet', 'camera', 'tv', 'monitor', 'keyboard', 'mouse', 'charger', 'cable', 'earbuds', 'smartwatch', 'drone', 'gaming', 'console', 'router', 'bluetooth'],
+    'Fashion': ['fashion', 'clothing', 'shirt', 'pants', 'dress', 'jacket', 'shoes', 'sneakers', 'boots', 'hat', 'scarf', 'belt', 'sunglasses', 'watch', 'jewelry', 'ring', 'necklace', 'bracelet', 'bag', 'handbag', 'wallet', 'sock'],
+    'Home': ['home', 'furniture', 'lamp', 'pillow', 'blanket', 'rug', 'curtain', 'vase', 'candle', 'kitchen', 'cookware', 'bedding', 'towel', 'organizer', 'storage', 'decor', 'plant', 'garden'],
+    'Sports': ['sports', 'fitness', 'yoga', 'gym', 'running', 'cycling', 'hiking', 'camping', 'swimming', 'exercise', 'workout', 'mat', 'dumbbell', 'resistance', 'protein', 'bottle'],
+    'Food': ['food', 'snack', 'drink', 'coffee', 'tea', 'chocolate', 'organic', 'vegan', 'supplement', 'vitamin', 'nutrition', 'protein powder', 'grocery'],
+    'Toys': ['toy', 'game', 'puzzle', 'lego', 'kids', 'baby', 'stroller', 'playmat'],
+    'Books': ['book', 'novel', 'audiobook', 'kindle', 'ebook', 'journal', 'planner', 'notebook'],
+    'Automotive': ['car', 'auto', 'vehicle', 'motorcycle', 'tire', 'motor', 'dash cam'],
+    'Pets': ['pet', 'dog', 'cat', 'fish', 'bird', 'treat', 'leash', 'collar', 'aquarium', 'litter'],
+    'Office': ['office', 'desk', 'chair', 'pen', 'stationery', 'printer', 'paper', 'stapler'],
+  };
+
+  const inputLower = input.toLowerCase();
+  const words = inputLower.split(/\s+/);
+
+  // Score each category by how many keyword matches
+  let bestCategory = 'General';
+  let bestScore = 0;
+
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    let score = 0;
+    for (const keyword of keywords) {
+      // Check if any word in the input matches or contains the keyword
+      for (const word of words) {
+        if (word.includes(keyword) || keyword.includes(word)) {
+          score += 1;
+        }
+      }
+      // Also check the full input for multi-word keywords
+      if (inputLower.includes(keyword)) {
+        score += 0.5;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  }
+
+  console.log(`[Category Analyzer] "${input}" → category: "${bestCategory}" (score: ${bestScore})`);
+
+  return {
+    category: bestCategory,
+    searchQuery: input,
+    keywords: words,
+    confidence: bestScore > 0 ? 80 : 50,
+  };
 }
 
 export default app;

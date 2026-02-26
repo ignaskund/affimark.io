@@ -1,3 +1,7 @@
+// REQUIRES: verifier_sessions and verifier_watchlist tables in Supabase.
+// Run VERIFIER_MIGRATION.sql (repo root) if the verifier endpoint returns
+// "Could not find the table 'public.verifier_sessions'".
+
 /**
  * Verifier Orchestrator
  *
@@ -286,12 +290,13 @@ export async function analyzeUrl(
     };
     const routing = routeIntent(intentInput);
 
-    // 16. Load alternative candidates from database
+    // 16. Load alternative candidates from database (user_context filters applied inside)
     const candidates = await loadAlternativeCandidates(
       brandSlug,
       category,
       normalized.region || 'EU',
-      supabase
+      supabase,
+      request.user_context
     );
 
     // 17. Rank alternatives with mode-specific weights
@@ -726,23 +731,42 @@ async function getCommissionData(
 }
 
 /**
- * Load alternative candidates from the database
- * Excludes the original brand, matches by category
+ * Load alternative candidates from the database.
+ * Excludes the original brand, matches by category, and applies any
+ * user_context filters (min commission, min cookie days, price band).
  */
 async function loadAlternativeCandidates(
   excludeBrandSlug: string,
   category: string,
   region: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  userContext?: AnalyzeRequest['user_context']
 ): Promise<RankerCandidate[]> {
   try {
-    // Query affiliate programs in the same category, excluding original brand
-    const { data, error } = await supabase
+    // Build base query — category match, exclude original brand, active only
+    let query = supabase
       .from('affiliate_programs')
       .select('*')
       .eq('primary_category', category.toLowerCase())
       .neq('brand_slug', excludeBrandSlug)
-      .eq('is_active', true)
+      .eq('is_active', true);
+
+    // Apply user_context hard filters so the ranker receives only viable programs
+    if (userContext?.min_commission_pct) {
+      query = query.gte('commission_rate_low', userContext.min_commission_pct);
+    }
+    if (userContext?.min_cookie_days) {
+      query = query.gte('cookie_duration_days', userContext.min_cookie_days);
+    }
+    if (userContext?.price_band?.min != null) {
+      // Candidate's price range must overlap with desired band
+      query = query.gte('typical_price_high', userContext.price_band.min);
+    }
+    if (userContext?.price_band?.max != null) {
+      query = query.lte('typical_price_low', userContext.price_band.max);
+    }
+
+    const { data, error } = await query
       .order('commission_rate_high', { ascending: false })
       .limit(50);
 

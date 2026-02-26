@@ -2,16 +2,24 @@
  * Datafeedr API Client
  * Access 950M+ products from 35+ affiliate networks via single API
  * Networks: Amazon, Awin, Impact, ShareASale, CJ, Rakuten, etc.
+ *
+ * API Docs: https://datafeedr.github.io/datafeedr-api-docs/
+ * Query format: `query` is an ARRAY of filter expressions like ["name LIKE headphones"]
+ * Operators: LIKE, =, !=, <, >, <=, >=, IN, NOT IN, EMPTY, NOT EMPTY
+ * Search operators within LIKE: AND (space), OR (|), NOT (-), PHRASE ("...")
  */
 
 export interface DatafeedrSearchParams {
-  query: string; // Search keywords
-  network_ids?: number[]; // Specific networks (1=Amazon, 2=Awin, etc.)
-  merchant_ids?: number[]; // Specific merchants
+  query: string;
+  /** Pre-built Datafeedr filter expressions, added verbatim to the query array */
+  rawFilters?: string[];
+  source_ids?: number[];
+  source_names?: string[];
+  merchant_ids?: number[];
   price_min?: number;
   price_max?: number;
-  currency?: string; // 'USD', 'EUR', 'GBP'
-  limit?: number; // Max 100
+  currency?: string;
+  limit?: number;
   offset?: number;
   sort?:
     | 'price_asc'
@@ -22,6 +30,8 @@ export interface DatafeedrSearchParams {
     | 'merchant_asc'
     | 'merchant_desc';
   in_stock?: boolean;
+  /** @deprecated Use source_ids or source_names instead */
+  network_ids?: number[];
 }
 
 export interface DatafeedrProduct {
@@ -44,7 +54,26 @@ export interface DatafeedrProduct {
   sku?: string;
   category?: string;
   availability?: string; // 'in stock', 'out of stock'
-  time_updated: number; // Unix timestamp
+  direct_url?: string;   // Merchant's product page URL (no affiliate tracking)
+  time_updated: number;  // Unix timestamp
+}
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+]);
+
+function normalizeAmountFromDatafeedr(rawAmount: number | undefined, currency?: string): number | undefined {
+  if (rawAmount === undefined || rawAmount === null || Number.isNaN(rawAmount)) {
+    return undefined;
+  }
+
+  const normalizedCurrency = (currency || '').toUpperCase();
+  if (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency)) {
+    return rawAmount;
+  }
+
+  // Datafeedr typically returns amount in minor units (e.g. 1800 -> 18.00).
+  return rawAmount / 100;
 }
 
 export interface DatafeedrSearchResponse {
@@ -53,6 +82,104 @@ export interface DatafeedrSearchResponse {
   products: DatafeedrProduct[];
   query: string;
   time: number; // API response time in ms
+}
+
+/**
+ * Build the Datafeedr query array from our search params.
+ * Datafeedr expects `query` as an array of filter strings like:
+ *   ["name LIKE headphones", "price >= 50", "network_id IN 2,3"]
+ */
+function buildQueryArray(params: DatafeedrSearchParams): string[] {
+  const queryFilters: string[] = [];
+
+  // Raw filters pass through verbatim (for sku=, any LIKE, etc.)
+  if (params.rawFilters && params.rawFilters.length > 0) {
+    queryFilters.push(...params.rawFilters);
+  }
+
+  // Main search term — use `name LIKE` for matching product names
+  if (params.query && params.query.trim().length > 0) {
+    const simplified = simplifySearchQuery(params.query);
+    if (simplified.length > 0) {
+      queryFilters.push(`name LIKE ${simplified}`);
+    }
+  }
+
+  // Network filter by name (preferred — no ID maintenance needed)
+  if (params.source_names && params.source_names.length > 0) {
+    queryFilters.push(`source LIKE ${params.source_names.join('|')}`);
+  }
+
+  // Network filter by ID (Datafeedr field is `source_id`, space-separated)
+  if (params.source_ids && params.source_ids.length > 0) {
+    queryFilters.push(`source_id IN ${params.source_ids.join(' ')}`);
+  } else if (params.network_ids && params.network_ids.length > 0) {
+    queryFilters.push(`source_id IN ${params.network_ids.join(' ')}`);
+  }
+
+  // Merchant filter (space-separated per Datafeedr docs)
+  if (params.merchant_ids && params.merchant_ids.length > 0) {
+    queryFilters.push(`merchant_id IN ${params.merchant_ids.join(' ')}`);
+  }
+
+  // Price range
+  if (params.price_min !== undefined) {
+    queryFilters.push(`finalprice >= ${params.price_min}`);
+  }
+  if (params.price_max !== undefined) {
+    queryFilters.push(`finalprice <= ${params.price_max}`);
+  }
+
+  // Currency
+  if (params.currency) {
+    queryFilters.push(`currency = ${params.currency}`);
+  }
+
+  return queryFilters;
+}
+
+/**
+ * Simplify a search query for better Datafeedr results.
+ * Removes noise like "3-Pack", "Gift Set", model numbers, and keeps
+ * the most meaningful product-identifying terms.
+ */
+function simplifySearchQuery(query: string): string {
+  // Remove noise patterns
+  let simplified = query
+    .replace(/\d+-pack/gi, '')
+    .replace(/gift\s*set/gi, '')
+    .replace(/bundle/gi, '')
+    .replace(/\([^)]*\)/g, '') // Remove parenthetical content
+    .replace(/\[[^\]]*\]/g, '') // Remove bracketed content
+    .replace(/–|—/g, ' ') // Em/en dashes to spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Take at most 5 meaningful words for the search
+  const words = simplified.split(' ').filter(w => w.length > 1);
+  if (words.length > 5) {
+    simplified = words.slice(0, 5).join(' ');
+  }
+
+  return simplified;
+}
+
+/**
+ * Convert our sort format to Datafeedr's sort array format.
+ * Datafeedr uses ["+price"], ["-price"], ["+relevance"], etc.
+ */
+function convertSort(sort?: string): string[] {
+  switch (sort) {
+    case 'price_asc': return ['+price'];
+    case 'price_desc': return ['-price'];
+    case 'name_asc': return ['+name'];
+    case 'name_desc': return ['-name'];
+    case 'merchant_asc': return ['+merchant'];
+    case 'merchant_desc': return ['-merchant'];
+    case 'relevance':
+    default:
+      return ['+relevance'];
+  }
 }
 
 /**
@@ -65,39 +192,69 @@ export async function searchDatafeedr(
 ): Promise<DatafeedrSearchResponse> {
   console.log('[Datafeedr] Searching:', params.query);
 
-  const payload = {
+  const queryArray = buildQueryArray(params);
+  console.log('[Datafeedr] Query filters:', queryArray);
+
+  const payload: Record<string, any> = {
     aid: accessId,
     akey: secretKey,
-    query: params.query,
-    limit: params.limit || 50,
-    offset: params.offset || 0,
-    sort: params.sort || 'relevance',
-    filter: buildFilters(params),
+    query: queryArray,
+    fields: [
+      'name', 'brand', 'price', 'finalprice', 'saleprice',
+      'currency', 'url', 'direct_url', 'image', 'merchant', 'merchant_id',
+      'network', 'network_id', 'category', 'availability',
+      'ean', 'upc', 'sku', 'description', 'time_updated',
+    ],
+    limit: Math.min(params.limit || 50, 100),
+    sort: convertSort(params.sort),
   };
 
-  const response = await fetch('https://api.datafeedr.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Datafeedr API error: ${response.status} ${response.statusText}`);
+  if (params.offset) {
+    payload.offset = params.offset;
   }
 
-  const data = await response.json();
+  const controller = new AbortController();
+  const timeoutMs = 12000; // Keep Datafeedr call bounded for UX SLA
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch('https://api.datafeedr.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Datafeedr request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`[Datafeedr] API error ${response.status}:`, errorBody);
+    throw new Error(`Datafeedr API error: ${response.status} - ${errorBody}`);
+  }
+
+  const data: any = await response.json();
 
   if (data.status === 'error') {
+    console.error('[Datafeedr] API returned error:', data.message);
     throw new Error(`Datafeedr API error: ${data.message}`);
   }
 
-  console.log(`[Datafeedr] Found ${data.found_count} products`);
+  const foundCount = data.found_count || data.total_found || 0;
+  console.log(`[Datafeedr] Found ${foundCount} products`);
 
   return {
-    status: data.status,
-    found_count: data.found_count || 0,
+    status: foundCount > 0 ? 'found' : 'not_found',
+    found_count: foundCount,
     products: data.products || [],
     query: params.query,
     time: data.time || 0,
@@ -105,76 +262,53 @@ export async function searchDatafeedr(
 }
 
 /**
- * Build filter array for Datafeedr API
+ * Map user-facing storefront keys to Datafeedr `source LIKE` terms.
+ * Uses text matching against the network's `source` field, which is more
+ * resilient than maintaining numeric IDs that Datafeedr can reassign.
  */
-function buildFilters(params: DatafeedrSearchParams): any[] {
-  const filters: any[] = [];
+const STOREFRONT_TO_SOURCE_NAME: Record<string, string> = {
+  amazon: 'amazon',
+  amazon_de: 'amazon',
+  amazon_uk: 'amazon',
+  amazon_us: 'amazon',
+  amazon_fr: 'amazon',
+  amazon_it: 'amazon',
+  amazon_es: 'amazon',
+  awin: 'awin',
+  shareasale: 'shareasale',
+  cj: 'commission junction',
+  impact: 'impact',
+  tradedoubler: 'tradedoubler',
+  rakuten: 'rakuten',
+  pepperjam: 'pepperjam',
+  linkshare: 'linkshare',
+  webgains: 'webgains',
+  partnerize: 'partnerize',
+};
 
-  // Network filter
-  if (params.network_ids && params.network_ids.length > 0) {
-    filters.push({
-      field: 'network_id',
-      operator: 'in',
-      value: params.network_ids,
-    });
+/**
+ * Resolve an array of user storefront keys to unique Datafeedr source names
+ * suitable for `source LIKE name1|name2` queries.
+ */
+export function resolveSourceNames(storefrontKeys: string[]): string[] {
+  const names = new Set<string>();
+  for (const key of storefrontKeys) {
+    const name = STOREFRONT_TO_SOURCE_NAME[key.toLowerCase()];
+    if (name) names.add(name);
   }
-
-  // Merchant filter
-  if (params.merchant_ids && params.merchant_ids.length > 0) {
-    filters.push({
-      field: 'merchant_id',
-      operator: 'in',
-      value: params.merchant_ids,
-    });
-  }
-
-  // Price range
-  if (params.price_min !== undefined) {
-    filters.push({
-      field: 'finalprice',
-      operator: '>=',
-      value: params.price_min,
-    });
-  }
-
-  if (params.price_max !== undefined) {
-    filters.push({
-      field: 'finalprice',
-      operator: '<=',
-      value: params.price_max,
-    });
-  }
-
-  // Currency
-  if (params.currency) {
-    filters.push({
-      field: 'currency',
-      operator: '=',
-      value: params.currency,
-    });
-  }
-
-  // In stock
-  if (params.in_stock === true) {
-    filters.push({
-      field: 'availability',
-      operator: '=',
-      value: 'in stock',
-    });
-  }
-
-  return filters;
+  return [...names];
 }
 
 /**
- * Get network ID by name
+ * @deprecated Use resolveSourceNames + source_names param for search filtering.
+ * These IDs are placeholders and may not match real Datafeedr source_ids.
  */
 export function getNetworkId(networkName: string): number | undefined {
   const networks: Record<string, number> = {
     amazon: 1,
     awin: 2,
     shareasale: 3,
-    cj: 4, // Commission Junction
+    cj: 4,
     rakuten: 5,
     impact: 6,
     tradedoubler: 7,
@@ -191,6 +325,32 @@ export function getNetworkId(networkName: string): number | undefined {
 }
 
 /**
+ * Fetch all networks from Datafeedr API to discover real source_ids.
+ * Results should be cached (they rarely change).
+ */
+export async function fetchNetworks(
+  accessId: string,
+  secretKey: string
+): Promise<Array<{ _id: number; name: string; group: string; product_count: number }>> {
+  const response = await fetch('https://api.datafeedr.com/networks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      aid: accessId,
+      akey: secretKey,
+      fields: ['name', 'group', 'product_count'],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Datafeedr networks API error: ${response.status}`);
+  }
+
+  const data: any = await response.json();
+  return data.networks || [];
+}
+
+/**
  * Search by category
  */
 export async function searchByCategory(
@@ -203,14 +363,12 @@ export async function searchByCategory(
   accessId: string,
   secretKey: string
 ): Promise<DatafeedrSearchResponse> {
-  const networkIds = options.networks?.map(n => getNetworkId(n)).filter(Boolean) as
-    | number[]
-    | undefined;
+  const sourceNames = options.networks ? resolveSourceNames(options.networks) : undefined;
 
   return searchDatafeedr(
     {
       query: category,
-      network_ids: networkIds,
+      source_names: sourceNames && sourceNames.length > 0 ? sourceNames : undefined,
       price_min: options.priceRange?.[0],
       price_max: options.priceRange?.[1],
       limit: options.limit || 50,
@@ -238,13 +396,11 @@ export async function findAlternatives(
   accessId: string,
   secretKey: string
 ): Promise<DatafeedrSearchResponse> {
-  // Build search query
   let query = originalProduct.category;
   if (originalProduct.brand && !options.excludeBrand) {
     query = `${originalProduct.brand} ${query}`;
   }
 
-  // Price range: -20% to +20% of original
   let priceMin: number | undefined;
   let priceMax: number | undefined;
   if (originalProduct.price) {
@@ -252,14 +408,12 @@ export async function findAlternatives(
     priceMax = originalProduct.price * 1.2;
   }
 
-  const networkIds = options.networks?.map(n => getNetworkId(n)).filter(Boolean) as
-    | number[]
-    | undefined;
+  const sourceNames = options.networks ? resolveSourceNames(options.networks) : undefined;
 
   return searchDatafeedr(
     {
       query,
-      network_ids: networkIds,
+      source_names: sourceNames && sourceNames.length > 0 ? sourceNames : undefined,
       price_min: priceMin,
       price_max: priceMax,
       limit: options.limit || 50,
@@ -292,7 +446,7 @@ export async function getMerchantInfo(
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
+  const data: any = await response.json();
   return data.merchant;
 }
 
@@ -300,21 +454,36 @@ export async function getMerchantInfo(
  * Convert Datafeedr product to AffiMark AlternativeProduct format
  */
 export function convertToAlternativeProduct(product: DatafeedrProduct): any {
+  let lastUpdated: string | undefined;
+  try {
+    if (product.time_updated && product.time_updated > 0) {
+      lastUpdated = new Date(product.time_updated * 1000).toISOString();
+    }
+  } catch {
+    // Invalid timestamp — skip
+  }
+
+  const normalizedPrice = normalizeAmountFromDatafeedr(product.finalprice, product.currency);
+  const normalizedOriginalPrice = normalizeAmountFromDatafeedr(
+    product.saleprice ? product.price : undefined,
+    product.currency
+  );
+
   return {
-    id: product._id,
+    id: product._id || String(product._id),
     url: product.url,
+    directUrl: product.direct_url,
     name: product.name,
     brand: product.brand || product.merchant,
     category: product.category || 'General',
     imageUrl: product.image,
-    price: product.finalprice,
+    price: normalizedPrice ?? 0,
     currency: product.currency,
-    originalPrice: product.saleprice ? product.price : undefined,
-    rating: undefined, // Datafeedr doesn't provide ratings
-    reviewCount: undefined,
+    originalPrice: normalizedOriginalPrice,
+    description: product.description,
     affiliateNetwork: product.network,
     merchant: product.merchant,
-    inStock: product.availability === 'in stock',
-    lastUpdated: new Date(product.time_updated * 1000).toISOString(),
+    inStock: product.availability === 'in-stock' || product.availability === 'in stock',
+    lastUpdated,
   };
 }

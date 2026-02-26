@@ -16,8 +16,11 @@ export type Env = {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_KEY: string;
   SUPABASE_ANON_KEY: string;
+  OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
   RAINFOREST_API_KEY?: string;
+  KEEPA_API_KEY?: string;         // keepa.com — free tier: 1 token/minute, 1200 products/day
+  AMAZON_PA_ACCESS_KEY?: string;  // Amazon Product Advertising API (free for Associates)
   SCRAPINGDOG_API_KEY?: string;
   DATAFEEDR_ACCESS_ID?: string;
   DATAFEEDR_SECRET_KEY?: string;
@@ -56,12 +59,16 @@ app.use('/*', cors({
   credentials: true,
 }));
 
-// Health check endpoint
+// Health check endpoint — also prints env key availability for debugging
 app.get('/api/health', (c) => {
+  const hasOpenAI = !!(c.env.OPENAI_API_KEY || (typeof process !== 'undefined' && process.env?.OPENAI_API_KEY));
+  const keySource = c.env.OPENAI_API_KEY ? 'c.env' : (typeof process !== 'undefined' && process.env?.OPENAI_API_KEY ? 'process.env' : 'MISSING');
+  console.log(`[Health] OPENAI_API_KEY present: ${hasOpenAI} (source: ${keySource})`);
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'AffiMark Backend is running'
+    message: 'AffiMark Backend is running',
+    ai: { openai: hasOpenAI, keySource },
   });
 });
 

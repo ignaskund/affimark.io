@@ -1,9 +1,9 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
+import { aiComplete } from './ai-client';
 
 export interface ScannerConfig {
   supabase: SupabaseClient;
-  anthropicApiKey: string;
+  anthropicApiKey?: string;
 }
 
 export interface ScanRunRecord {
@@ -27,37 +27,16 @@ export interface DetectedProduct {
  */
 export class ScannerService {
   private supabase: SupabaseClient;
-  private anthropic: Anthropic;
 
   constructor(config: ScannerConfig) {
     this.supabase = config.supabase;
-    this.anthropic = new Anthropic({
-      apiKey: config.anthropicApiKey,
-    });
   }
 
   async processScan(scan: ScanRunRecord): Promise<DetectedProduct[]> {
     const prompt = this.buildPrompt(scan.transcript_text);
 
     try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
-        max_tokens: 1024,
-        temperature: 0,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        return [];
-      }
-
-      const raw = content.text.trim();
+      const raw = await aiComplete({ prompt, maxTokens: 1024, temperature: 0 });
 
       // Expect JSON array, but be defensive
       let parsed: any;

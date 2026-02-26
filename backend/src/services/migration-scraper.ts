@@ -552,7 +552,13 @@ export class MigrationScraper {
         if (lowerUrl.includes('amazon.com') || lowerUrl.includes('amzn.to')) {
             return 'amazon';
         }
-        if (lowerUrl.includes('ltk.app') || lowerUrl.includes('liketoknow.it')) {
+        if (
+            lowerUrl.includes('ltk.app') ||
+            lowerUrl.includes('ltk.to') ||
+            lowerUrl.includes('ltk.app.link') ||
+            lowerUrl.includes('shopltk.com') ||
+            lowerUrl.includes('liketoknow.it')
+        ) {
             return 'ltk';
         }
         if (lowerUrl.includes('shopstyle.it') || lowerUrl.includes('rstyle.me')) {
