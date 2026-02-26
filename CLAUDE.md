@@ -6,6 +6,8 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
 
 **Positioning:** This is NOT "another analytics dashboard." This is revenue protection + operational sanity + tax readiness.
 
+**PRIMARY FOCUS: Alternative Search Quality.** The onboarding flow (Linktree URL scan + priority ranking) exists to maximize the quality of alternative product search. See `AGENTS.md` for the complete onboarding→search data pipeline and quality principles.
+
 ---
 
 ## Target Market
@@ -785,11 +787,11 @@ frontend/
 
 ```bash
 # Backend
-cd backend && npm run dev      # http://localhost:8787
+cd backend && npm run dev      # [REDACTED]
 cd backend && npm run deploy
 
 # Frontend
-cd frontend && npm run dev     # http://localhost:3000
+cd frontend && npm run dev     # [REDACTED]
 cd frontend && npm run lint
 cd frontend && npm run build
 ```

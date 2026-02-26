@@ -4,15 +4,79 @@ Backend: Cloudflare Workers API (Hono + TypeScript), Supabase.
 
 **Positioning:** Revenue protection + operational sanity. Not "another analytics dashboard."
 
+**PRIMARY FOCUS: Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→search data pipeline.
+
 ---
 
 ## Core Responsibilities
 
-1. **SmartWrapper Redirects** - Fast (<50ms), in-app browser detection, fallback handling
-2. **Platform Integrations** - OAuth + CSV parsing for multi-storefront support
-3. **Data Normalization** - Handle "shipped" vs "ordered", multi-currency conversion
-4. **Revenue Loss Detection** - Health checks, loss estimation, auto-fallback
-5. **Smart Optimization** - Program comparison with confidence scores
+1. **Alternative Product Search** ★ — Find the best alternative product for each item using onboarding context
+2. **SmartWrapper Redirects** - Fast (<50ms), in-app browser detection, fallback handling
+3. **Platform Integrations** - OAuth + CSV parsing for multi-storefront support
+4. **Data Normalization** - Handle "shipped" vs "ordered", multi-currency conversion
+5. **Revenue Loss Detection** - Health checks, loss estimation, auto-fallback
+6. **Smart Optimization** - Program comparison with confidence scores
+
+---
+
+## Alternative Search Architecture (★ PRIMARY)
+
+The alternative search must leverage ALL onboarding data to find the best match.
+
+### Onboarding data available to search
+
+1. **From Linktree scan** (stored during magic onboarding):
+   - Storefronts: which platforms (LTK, Amazon, ShopMy) + their products
+   - Social accounts: Instagram, YouTube, TikTok, etc.
+   - Products: URLs, titles, prices, brands — gives us dominant categories, avg price, top brands
+
+2. **From priority ranking** (stored in `user_creator_preferences`):
+   - `product_priorities`: ranked 1-5 from quality/price/reviews/sustainability/design/shipping/warranty/brand_recognition
+   - `brand_priorities`: ranked 1-5 from commission/customer_service/return_policy/reputation/sustainability/payment_speed/cookie_duration/easy_approval
+
+3. **Derived profile** (built by `profile-builder.ts`, cached in `user_product_profiles`):
+   - `storefrontContext.dominantCategories` — what categories they already sell
+   - `storefrontContext.topBrands` — brands they already promote
+   - `storefrontContext.avgPricePoint` — their typical price range
+   - `storefrontContext.preferredNetworks` — which affiliate networks they use
+   - `socialContext.contentCategories` — what they create content about
+   - `socialContext.audienceDemographics` — who their audience is
+
+### Two search systems
+
+| System | Entry Point | When Used | Data Source |
+|--------|-------------|-----------|-------------|
+| **Product Finder** | `POST /api/finder/search` | User searches for alternatives to a URL or category | Datafeedr API (multi-network) |
+| **Product Verifier** | `POST /api/verifier/analyze` | User verifies a specific product link | `affiliate_programs` table |
+
+### Search quality rules
+
+The inserted product URL is **ground truth**. Alternatives must:
+- Be the **same item type** (headphones → headphones, not speakers)
+- Respect the user's **ranked priorities** (quality #1 → top result must have best reviews)
+- Stay within the user's **price band** (±30% of avg storefront price)
+- Prefer the user's **existing networks** (Amazon/LTK if that's what they use)
+- Consider **audience fit** (EU audience → EU-available products)
+
+### Key files for search quality
+
+```
+src/services/
+├── profile-builder.ts          — Builds UserProfile from onboarding data
+├── multi-network-search.ts     — DUAL SCORING: match (60%) + outcome feasibility (40%)
+├── product-intent-analyzer.ts  — AI extracts category/brand/keywords from URL
+├── dynamic-intent-analyzer.ts  — Session-level intent adjustments
+├── outcome-feasibility-scorer.ts — Business viability gate
+├── datafeedr-client.ts         — Datafeedr API integration
+└── product-canonicalization.ts — Deduplication
+
+src/services/verifier/
+├── verifier-orchestrator.ts    — Full pipeline: scrape→score→verdict→rank→bucket
+├── scoring-engine.ts           — 3-pillar scoring (deterministic, no AI)
+├── intent-router.ts            — Auto-selects rank mode from weakest pillar
+├── alternatives-ranker.ts      — Weighted scoring + tag generation
+└── bucketizer.ts               — Groups results: Safe/Upside/Budget/Trending
+```
 
 ---
 
@@ -911,7 +975,7 @@ export async function runExchangeRateCron(env: Env) {
 ## Commands
 
 ```bash
-cd backend && npm run dev      # http://localhost:8787
+cd backend && npm run dev      # [REDACTED]
 cd backend && npm run deploy
 cd backend && npx tsc --noEmit # Type-check
 ```

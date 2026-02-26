@@ -4,18 +4,51 @@ Frontend: Next.js 15 (App Router) + TypeScript + Tailwind + Supabase + Stripe.
 
 **Positioning:** Revenue protection + operational sanity + tax readiness. NOT "another analytics dashboard."
 
+**PRIMARY FOCUS: Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→search pipeline.
+
 ---
 
 ## Core User Experience
 
-**Primary User Flow:**
+**Primary User Flow (Onboarding → Search):**
 ```
-Landing → Sign Up → Connect Storefronts (Zero Effort) → Dashboard → Optimize Links
+Sign Up → Magic Onboarding (paste Linktree URL) → Priority Ranking → Dashboard → Search Alternatives
 ```
 
-**Key Insight:** The Smart Link Optimizer is the HERO feature. Everything else supports seeing earnings, protecting revenue, and making tax easy.
+**Onboarding captures the data that powers search quality:**
+1. `/onboarding/magic` — User pastes link-in-bio URL → we scrape storefronts, products, socials
+2. `/onboarding/priorities` — User ranks 5 product priorities + 5 brand priorities
+3. This data feeds `profile-builder.ts` on the backend, which creates a UserProfile used by every search
+
+**Key Insight:** The alternative product search is the HERO feature. Onboarding is designed to maximize search quality by collecting context about the creator's niche, audience, and priorities.
 
 **Trust-First Design:** Creators are wary of tools that "sit between" them and brands. Every feature must emphasize transparency, no commission skimming, and user control.
+
+---
+
+## Onboarding Pages (Critical for Search Quality)
+
+| Path | Purpose | Data Captured |
+|------|---------|---------------|
+| `/onboarding/magic` | Paste Linktree/Beacons URL, auto-detect storefronts + products | Storefronts, products, social accounts → DB |
+| `/onboarding/priorities` | Rank top 5 product + brand priorities via drag-and-drop | `user_creator_preferences.{product,brand}_priorities` |
+
+### Priority Options (defined in `types/finder.ts`)
+
+**Product priorities:** quality, price, reviews, sustainability, design, shipping, warranty, brand_recognition
+**Brand priorities:** commission, customer_service, return_policy, reputation, brand_sustainability, payment_speed, cookie_duration, easy_approval
+
+These ranked priorities directly influence how alternatives are scored. Rank 1 gets 5x weight, rank 5 gets 1x weight.
+
+### Search Components
+
+| Component | Purpose |
+|-----------|---------|
+| `components/finder/FinderInput.tsx` | URL or category input for product search |
+| `components/verifier/ProductVerifier.tsx` | Verifier UI with 3-pillar scores + alternatives |
+| `components/verifier/RecommendationsBuckets.tsx` | Safe/Upside/Budget/Trending alternative groups |
+| `components/verifier/WinnerRecommendationCard.tsx` | Top-pick alternative card |
+| `components/optimizer/OptimizerAnalyzer.tsx` | Smart Link Optimizer UI |
 
 ---
 
@@ -709,7 +742,7 @@ frontend/
 ## Commands
 
 ```bash
-cd frontend && npm run dev     # http://localhost:3000
+cd frontend && npm run dev     # [REDACTED]
 cd frontend && npm run lint
 cd frontend && npm run build
 ```
