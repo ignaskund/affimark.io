@@ -1,4 +1,4 @@
-# Claude Code Prompt — Alternative Search Quality
+# Claude Code Prompt — Fix Search Infrastructure Blockers
 
 Copy the prompt below and paste it into Claude Code.
 
@@ -7,79 +7,183 @@ Copy the prompt below and paste it into Claude Code.
 ## The Prompt
 
 ```
-Read AGENTS.md at the repo root first — it documents the full onboarding→search data pipeline and quality principles.
+Read AGENTS.md first for full architecture context.
 
-## Goal
+You are fixing 8 infrastructure bugs that prevent the alternative search pipeline from working. These are confirmed bugs — do not skip any. Fix them in the order listed.
 
-Improve alternative product search quality so that when a user inserts a product URL, the returned alternatives are accurate, personalized, and actionable. The search must deeply leverage ALL data collected during onboarding (Linktree scan + priority ranking).
+## Bug 1 (CRITICAL): profile-builder.ts uses D1 instead of Supabase
 
-## Context
+File: backend/src/services/profile-builder.ts
+Function: getExistingProfile() at line ~116
 
-The onboarding flow captures:
-1. Linktree/bio-link URL → scraped into storefronts, products, socials (gives us: dominant categories, top brands, avg price point, preferred networks)
-2. Ranked product priorities (quality, price, reviews, sustainability, design, shipping, warranty, brand_recognition)
-3. Ranked brand priorities (commission, customer_service, return_policy, reputation, sustainability, payment_speed, cookie_duration, easy_approval)
+Problem: Uses `env.DB.prepare(...)` which is Cloudflare D1 syntax. This project uses Supabase. The entire finder search crashes with "Cannot read properties of undefined (reading 'prepare')".
 
-This data flows into profile-builder.ts → UserProfile, which is used by the search in multi-network-search.ts and verifier-orchestrator.ts. The problem is that the search doesn't leverage all this context deeply enough.
+Fix: Rewrite getExistingProfile() to use Supabase REST API — same pattern as getUserPriorities() in the same file (line ~173). Use fetch() with `${supabaseUrl}/rest/v1/user_product_profiles?user_id=eq.${userId}` and the apikey/Authorization headers.
 
-## Phase 1: Explore (do this first, don't write code yet)
+Verify: After fixing, run this and confirm no "prepare" error:
+```bash
+curl -s http://127.0.0.1:8787/api/finder/api/finder/search -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"test-user","input":"headphones","inputType":"category"}'
+```
 
-1. Read these files and understand the current scoring logic:
-   - backend/src/services/profile-builder.ts (how profile is built from onboarding)
-   - backend/src/services/multi-network-search.ts (how match score is calculated, the calculateProfileMatchScore and calculatePriorityScore functions)
-   - backend/src/services/product-intent-analyzer.ts (how product intent is extracted from URL)
-   - backend/src/services/outcome-feasibility-scorer.ts (business viability gate)
-   - backend/src/services/verifier/alternatives-ranker.ts (how verifier ranks alternatives)
-   - backend/src/services/verifier/verifier-orchestrator.ts (loadAlternativeCandidates function)
-   - frontend/types/finder.ts (AlternativeProduct, PriorityAlignment types)
+## Bug 2 (CRITICAL): finder-routes.ts has double-prefixed paths
 
-2. Identify the gaps — where is onboarding data NOT being used or underused? Specifically check:
-   - Does calculatePriorityScore handle ALL 8 product priorities and ALL 8 brand priorities?
-   - Does the Datafeedr search query incorporate the user's storefront context (dominant categories, brands)?
-   - Does the verifier's loadAlternativeCandidates use any user context at all?
-   - Is the brand priority ranking (commission, cookie_duration, etc.) actually influencing which programs surface?
-   - Does price band targeting use the user's actual avg price from their storefront products?
+File: backend/src/routes/finder-routes.ts
 
-3. Report your findings before writing any code. List each gap with the file and line number.
+Problem: Routes are defined as `/api/finder/search`, `/api/finder/profile/build`, etc. But this file is mounted at `/api/finder` in api.ts (line 120: `api.route('/api/finder', finderRoutes)`). This creates double-prefixed paths like `/api/finder/api/finder/search`.
 
-## Phase 2: Plan
+Fix: Change all route paths in finder-routes.ts to be relative:
+- `/api/finder/search` → `/search`
+- `/api/finder/profile/build` → `/profile/build`
+- `/api/finder/profile/:userId` → `/profile/:userId`
+- `/api/finder/intent/analyze` → `/intent/analyze`
+- Any other `/api/finder/...` paths → strip the `/api/finder` prefix
 
-Based on your findings, propose specific changes. The changes should address these quality dimensions:
+Also update the frontend caller. In frontend/app/api/finder/search/route.ts at line ~76, the fetch URL is `${backendUrl}/api/finder/search` — this should remain as-is since it will now correctly resolve after the route fix.
 
-1. **Product match accuracy** — the alternative must be the same type of item (not just same category)
-2. **Priority-weighted scoring** — all 8 product priorities and all 8 brand priorities must have real scoring implementations (not just stubs returning 50-60)
-3. **Storefront context integration** — search queries and scoring should use dominant categories, top brands, avg price point, preferred networks from the user's actual storefronts
-4. **Brand priority impact** — if user ranked "commission" #1, high-commission programs must rank higher; if "cookie_duration" #1, long-cookie programs must rank higher
-5. **Audience-aware filtering** — if we know audience demographics from social context, prefer products available in those regions/languages
+Verify: After fixing:
+```bash
+curl -s http://127.0.0.1:8787/api/finder/search -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"test-user","input":"headphones","inputType":"category"}'
+```
+Should return JSON (not 404).
 
-Present the plan as a numbered list of changes with file paths. Don't implement yet.
+## Bug 3 (HIGH): searchViaDatafeedr returns 0 results for new users
 
-## Phase 3: Implement
+File: backend/src/services/multi-network-search.ts
+Function: searchViaDatafeedr() at line ~175
 
-After we agree on the plan, implement the changes. For each change:
-- Keep scoring deterministic (no AI calls in hot scoring path)
-- Maintain backward compatibility — don't break the existing API contracts
-- Add JSDoc comments explaining the scoring formula for each priority
+Problem: When avgPricePoint is 0 (new users with no storefront data), the price filter calculates priceMin=0 and priceMax=0, filtering out ALL products.
 
-## Verification
+Fix: Add a guard at the top of the function:
+```typescript
+if (profile.storefrontContext.avgPricePoint <= 0) {
+  // New user with no price history — don't apply price filters
+  priceMin = undefined;
+  priceMax = undefined;
+}
+```
+Only apply the existing price range logic when avgPricePoint > 0.
 
-After implementation, verify by:
-1. Run `cd backend && npx tsc --noEmit` — no NEW type errors (pre-existing ones are ok)
-2. Trace through the code manually with this test case:
-   - User has storefront on Amazon DE with avg price €80, dominant category "Beauty"
-   - Product priorities: 1=quality, 2=reviews, 3=price, 4=sustainability, 5=shipping
-   - Brand priorities: 1=commission, 2=return_policy, 3=reputation, 4=cookie_duration, 5=easy_approval
-   - Inserted product: https://www.amazon.de/dp/B0EXAMPLE (a skincare product, €45)
-   - Expected: alternatives should be beauty/skincare products, €35-105 range, highest-rated first, from high-commission programs with good return policies
-3. Log the scoring breakdown for 3 sample products to verify priorities are respected
+## Bug 4 (HIGH): Verifier orchestrator doesn't pass user_context to loadAlternativeCandidates
+
+File: backend/src/services/verifier/verifier-orchestrator.ts
+
+Problem: The analyzeUrl function has `request.user_context` available (line ~39) but the call to `loadAlternativeCandidates` at line ~295 only passes `(brandSlug, category, region, supabase)` — never forwarding the user's min_commission_pct, min_cookie_days, or price_band filters.
+
+Fix:
+1. Update the call at line ~295 to pass user_context:
+   ```typescript
+   const candidates = await loadAlternativeCandidates(
+     brandSlug,
+     category,
+     normalized.region || 'EU',
+     supabase,
+     request.user_context  // ADD THIS
+   );
+   ```
+2. Update the loadAlternativeCandidates function signature to accept and use the user_context parameter. Apply the filters as `.gte()` / `.lte()` Supabase query modifiers when the values are provided.
+
+## Bug 5 (MEDIUM): brand_recognition priority uses hardcoded 5-brand list
+
+File: backend/src/services/multi-network-search.ts
+Function: calculatePriorityScore(), case 'brand_recognition' at line ~320
+
+Problem: Only Apple, Sony, Samsung, Nike, Adidas are treated as "known brands". Every other brand (Dyson, Bose, L'Oréal, Zara, etc.) gets a neutral 50.
+
+Fix: Instead of a hardcoded list, use these signals:
+- If the product has reviewCount > 500, it's likely a known brand → score 80
+- If the product has reviewCount > 100, moderately known → score 70
+- If the product brand appears in the user's storefrontContext.topBrands → score 85
+- Fallback → 55
+
+Remove the hardcoded knownBrands array entirely.
+
+## Bug 6 (MEDIUM): storeUserProfile may create duplicate rows
+
+File: backend/src/services/profile-builder.ts
+Function: storeUserProfile() at line ~392
+
+Problem: Uses Supabase REST with `Prefer: resolution=merge-duplicates` but this only works if there's a unique constraint on user_id. If the constraint is missing, duplicate rows accumulate.
+
+Fix: Change the approach to check-then-upsert:
+1. First try UPDATE where user_id matches
+2. If no rows updated (count=0), then INSERT
+Or simpler: use Supabase's `.upsert()` pattern via REST with `Prefer: return=representation,resolution=merge-duplicates` and ensure on_conflict is on user_id.
+
+## Bug 7 (MEDIUM): Frontend falls back to fake mock data silently
+
+File: frontend/app/api/finder/search/route.ts
+Function: The catch blocks at lines ~103-109
+
+Problem: When the backend search fails, the frontend silently returns hardcoded mock products (Sony WH-1000XM5, Bose QC45, Apple AirPods Max, etc.) as if they were real results. The user has no idea they're seeing fake data.
+
+Fix:
+1. Add an `isMockData: true` flag to the response when falling back to mocks
+2. In the mock generator, prefix reasons with "[Demo] " so it's obvious
+3. Log a clear warning: `console.warn('[Finder] FALLING BACK TO MOCK DATA — backend search failed')`
+
+## Bug 8 (LOW): Verifier sessions table missing from Supabase
+
+File: This is a database migration issue, not a code fix.
+
+Problem: The verifier endpoint returns "Could not find the table 'public.verifier_sessions'" because the migration hasn't been run.
+
+Fix: Check if COMPLETE_DATABASE_SETUP.sql or PRODUCT_FINDER_MIGRATION.sql contains the CREATE TABLE for verifier_sessions. If it does, note this in a comment at the top of verifier-orchestrator.ts:
+```typescript
+// REQUIRES: verifier_sessions and verifier_watchlist tables in Supabase
+// Run COMPLETE_DATABASE_SETUP.sql if these tables are missing
+```
+If the table definition is NOT in any migration file, create the migration SQL based on the columns used in createSession() and updateSession() functions, and save it as VERIFIER_MIGRATION.sql in the repo root.
+
+## Execution order
+
+1. Fix Bug 2 first (route paths) — this unblocks testing everything else
+2. Fix Bug 1 (D1→Supabase) — this unblocks the profile builder
+3. Fix Bug 3 (price filter guard) — quick, 3 lines
+4. Fix Bug 4 (pass user_context) — medium
+5. Fix Bug 5 (brand_recognition) — medium
+6. Fix Bug 6 (upsert) — medium
+7. Fix Bug 7 (mock data flag) — quick
+8. Fix Bug 8 (migration check) — documentation
+
+## Final verification
+
+After all fixes, restart the backend and run:
+
+```bash
+# 1. Route fix verification (should not 404)
+curl -s http://127.0.0.1:8787/api/finder/search -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"test","input":"wireless headphones","inputType":"category"}' | head -5
+
+# 2. Profile builder doesn't crash
+curl -s http://127.0.0.1:8787/api/finder/profile/build -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"test"}' | head -5
+
+# 3. TypeScript check (no NEW errors)
+cd backend && npx tsc --noEmit 2>&1 | grep -c "error TS"
+# Should be same count as before (pre-existing errors only)
+```
+
+Do NOT modify any files outside the ones listed above. Do NOT refactor unrelated code.
 ```
 
 ---
 
-## Tips for using this prompt
+## How to use this prompt
 
-- **Paste the whole thing at once** into Claude Code. The phased structure (Explore → Plan → Implement) prevents it from jumping to code before understanding the problem.
-- **Phase 1 will end with a report**. Review the gaps it found. If it misses something, point it out.
-- **Phase 2 will end with a plan**. Say "yes, implement" or adjust the plan before Phase 3.
-- **If context gets long**, use `/clear` and re-paste with: "Continue from Phase 3. The plan we agreed on was: [paste the plan]. Implement it now."
-- **AGENTS.md and CLAUDE.md are auto-loaded** — the agent will read them and understand the architecture without you needing to explain it.
+1. **Make sure your 8 scoring fixes are committed and pushed first.** This prompt builds on top of those.
+2. **Paste the entire prompt at once.** The numbered structure and execution order prevent the agent from jumping around.
+3. **Each bug has a verify step.** If the agent skips verification, say: "Run the verify command for Bug N before proceeding."
+4. **If context fills up** mid-way, use `/clear` and paste: "Continue from Bug N. Bugs 1 through N-1 are already fixed. Read AGENTS.md for context, then fix Bug N."
+5. **After completion**, review the diff. The changes should touch exactly these files:
+   - `backend/src/services/profile-builder.ts` (bugs 1, 6)
+   - `backend/src/routes/finder-routes.ts` (bug 2)
+   - `backend/src/services/multi-network-search.ts` (bugs 3, 5)
+   - `backend/src/services/verifier/verifier-orchestrator.ts` (bug 4)
+   - `frontend/app/api/finder/search/route.ts` (bug 7)
+   - Possibly a new `VERIFIER_MIGRATION.sql` (bug 8)
