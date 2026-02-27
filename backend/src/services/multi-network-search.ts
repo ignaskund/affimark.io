@@ -378,11 +378,16 @@ export async function searchAllNetworks(
         }
       }
 
-      // HARD STOREFRONT ELIGIBILITY GATE
+      // SOFT STOREFRONT ELIGIBILITY — not a hard gate.
+      // Products from networks the user hasn't connected get a small score penalty
+      // and a verification flag, but are still shown. This prevents users from
+      // getting 0 results just because their profile lists amazon_de+awin+ltk
+      // while the product is on Belboon or Impact.
       const eligibility = checkEligibility(p, userProfile);
       if (!eligibility.eligible) {
-        console.log(`[Multi-Network] Ineligible storefront: "${p.name}" → ${eligibility.reason}`);
-        return false;
+        p.combinedScore = Math.max(0, p.combinedScore - 10);
+        p.requiresVerification = true;
+        p.outcomeWarnings = [...(p.outcomeWarnings || []), eligibility.reason];
       }
 
       // Must pass minimum combined threshold (match + feasibility)

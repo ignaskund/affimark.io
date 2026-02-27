@@ -133,15 +133,22 @@ const qualitySpec: PriorityKpiSpec = {
       };
     }
 
-    // Enrichment hasn't run yet (basic/static level) — be honest
+    // Scoring happens before dynamic enrichment (product page fetch) runs.
+    // Returning 0 here actively punishes every Datafeedr product just because
+    // it hasn't been page-fetched yet — collapsing the 55% product-priority
+    // component for users who rank quality #1.
+    // → Return 50 (neutral) so missing data doesn't artificially lower scores.
+    //   Products that survive to the top-N get dynamically enriched afterward
+    //   and their KPIs are re-computed with real rating data.
+    const isChecked = p.enrichmentLevel === 'full';
     return {
-      score: 0,
+      score: isChecked ? 40 : 50, // 40 if we fetched the page and found nothing; 50 if data pending
       confidence: 'low',
-      reason: 'Rating data pending — product page not yet fetched',
-      evidenceLabel: p.enrichmentLevel === 'full' ? 'No rating on merchant page' : 'Awaiting page enrichment',
+      reason: isChecked ? 'No rating data found on merchant page' : 'Rating data pending — scored neutrally until enriched',
+      evidenceLabel: isChecked ? 'No rating on merchant page' : 'Awaiting page enrichment',
       evidenceSource: 'pending_enrichment',
       checkedAt: now(),
-      isProxy: false,
+      isProxy: true,
     };
   },
 };
@@ -226,14 +233,17 @@ const reviewsSpec: PriorityKpiSpec = {
       };
     }
 
+    // Same reasoning as qualitySpec: returning 0 penalises every product for not
+    // yet having its page fetched. Return neutral (50) until enrichment completes.
+    const isChecked = p.enrichmentLevel === 'full';
     return {
-      score: 0,
+      score: isChecked ? 40 : 50,
       confidence: 'low',
-      reason: 'Review data pending — product page not yet fetched',
-      evidenceLabel: p.enrichmentLevel === 'full' ? 'No reviews on merchant page' : 'Awaiting page enrichment',
+      reason: isChecked ? 'No review data found on merchant page' : 'Review data pending — scored neutrally until enriched',
+      evidenceLabel: isChecked ? 'No reviews on merchant page' : 'Awaiting page enrichment',
       evidenceSource: 'pending_enrichment',
       checkedAt: now(),
-      isProxy: false,
+      isProxy: true,
     };
   },
 };

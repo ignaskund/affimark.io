@@ -317,14 +317,30 @@ async function analyzeStorefronts(userId: string, env: any) {
   // Extract product names for AI categorization.
   // product_name is a human-readable title (e.g. "Sony WH-1000XM5 Headphones"),
   // which gives much better intent extraction than product_id (which may be an ASIN).
-  const productNames = transactions
-    .map((t: any) => t.product_name)
-    .filter(Boolean)
+  // Keep the full transaction row alongside the name so we can compute per-category
+  // commission rates using the same indices as the returned intents array.
+  const namedTransactions = transactions
+    .filter((t: any) => t.product_name)
     .slice(0, 50);
+  const productNames = namedTransactions.map((t: any) => t.product_name);
 
   // Categorize products by title using AI (falls back to keyword matching)
   const intents = await analyzeMultipleNames(productNames, env);
   const dominantCategories = extractDominantCategories(intents);
+
+  // Build category → commission rates mapping using the same index alignment
+  // between namedTransactions[i] and intents[i].
+  const categoryCommissionRates = new Map<string, number[]>();
+  namedTransactions.forEach((t: any, i: number) => {
+    const category = intents[i]?.category || 'General';
+    const revenue = parseFloat(t.revenue) || 0;
+    const commission = parseFloat(t.commission) || 0;
+    if (revenue > 0 && commission > 0) {
+      const rate = commission / revenue; // fractional (e.g. 0.08 = 8%)
+      const existing = categoryCommissionRates.get(category) || [];
+      categoryCommissionRates.set(category, [...existing, rate]);
+    }
+  });
 
   // Calculate average price point using actual commission rates where available.
   // revenue / (commission / revenue) = price  → avoids the "assume 5%" bias
@@ -376,11 +392,17 @@ async function analyzeStorefronts(userId: string, env: any) {
     .map(([brand]) => brand);
 
   return {
-    dominantCategories: dominantCategories.slice(0, 5).map(cat => ({
-      category: cat.category,
-      percentage: cat.percentage,
-      avgCommission: 5.0, // Placeholder
-    })),
+    dominantCategories: dominantCategories.slice(0, 5).map(cat => {
+      const rates = categoryCommissionRates.get(cat.category);
+      const avgCommission = rates && rates.length > 0
+        ? Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 1000) / 10  // fraction → % (1 dp)
+        : 5.0; // fallback when no transaction data for this category
+      return {
+        category: cat.category,
+        percentage: cat.percentage,
+        avgCommission,
+      };
+    }),
     topBrands,
     avgPricePoint,
     preferredNetworks,

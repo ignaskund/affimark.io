@@ -140,28 +140,46 @@ function buildQueryArray(params: DatafeedrSearchParams): string[] {
 
 /**
  * Simplify a search query for better Datafeedr results.
- * Removes noise like "3-Pack", "Gift Set", model numbers, and keeps
- * the most meaningful product-identifying terms.
+ * Strips price/intent qualifiers, stopwords, and packing noise so only
+ * product-identifying terms reach the `name LIKE` filter.
+ * e.g. "affordable vitamin c serum under 20 euros" → "vitamin c serum"
  */
 function simplifySearchQuery(query: string): string {
-  // Remove noise patterns
+  // Step 1: Remove multi-word price/comparison phrases before tokenising
   let simplified = query
+    .replace(/\b(less than|more than|under|over|around|about|up to|starting at)\b\s*[\d€$£]*/gi, '')
+    .replace(/\b[\d,.]+\s*(euros?|dollars?|gbp|usd|eur|£|\$|€)\b/gi, '') // "20 euros", "$50"
+    .replace(/[€$£]\s*[\d,.]+/gi, '')                                      // "€20", "$50"
     .replace(/\d+-pack/gi, '')
     .replace(/gift\s*set/gi, '')
-    .replace(/bundle/gi, '')
-    .replace(/\([^)]*\)/g, '') // Remove parenthetical content
-    .replace(/\[[^\]]*\]/g, '') // Remove bracketed content
-    .replace(/–|—/g, ' ') // Em/en dashes to spaces
+    .replace(/\([^)]*\)/g, '')   // parenthetical content
+    .replace(/\[[^\]]*\]/g, '')  // bracketed content
+    .replace(/–|—/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Take at most 5 meaningful words for the search
-  const words = simplified.split(' ').filter(w => w.length > 1);
-  if (words.length > 5) {
-    simplified = words.slice(0, 5).join(' ');
-  }
+  // Step 2: Remove individual noise words that never appear in product titles
+  const NOISE_WORDS = new Set([
+    // Price intent
+    'affordable', 'cheap', 'budget', 'luxury', 'premium', 'expensive',
+    'best', 'good', 'top', 'great', 'nice', 'amazing', 'quality',
+    // Quantity/comparison markers
+    'under', 'over', 'around', 'about', 'below', 'above',
+    // Currency (as standalone words after the regex above)
+    'euros', 'euro', 'dollars', 'dollar', 'pounds', 'usd', 'eur', 'gbp',
+    // Stopwords that add no product signal
+    'for', 'the', 'and', 'with', 'from', 'that', 'this', 'very', 'really',
+    'to', 'in', 'of', 'a', 'an', 'is', 'are', 'my', 'me', 'i',
+    // Packing/generic product noise
+    'gift', 'set', 'pack', 'bundle', 'kit', 'combo', 'edition',
+  ]);
 
-  return simplified;
+  const words = simplified
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !NOISE_WORDS.has(w.toLowerCase()));
+
+  // Step 3: Keep at most 5 product-identifying words
+  return words.slice(0, 5).join(' ');
 }
 
 /**

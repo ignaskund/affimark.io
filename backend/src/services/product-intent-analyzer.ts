@@ -706,11 +706,17 @@ function analyzeFromUrlStructure(url: string): ProductIntent {
   }
 
   // Build search query from path parts (skip ASINs, IDs, tracking params)
+  const FILE_EXTS = /\.(html?|php|asp[x]?|jsp|cfm|cgi|shtml)$/i;
+  const URL_NOISE = /^(dp|gp|product|products|item|ref|ref_|detail|buy|shop|view|catalog|en|de|fr|nl|it|es|pl|category|collections|c|p|s)$/;
+
   const relevantParts = pathParts
+    .map(part => part.replace(FILE_EXTS, '')) // strip .html, .php, etc.
     .filter(part =>
       part.length > 3 &&
-      !part.match(/^(dp|gp|product|item|ref|ref_)$/) &&
-      !/^[A-Z0-9]{10}$/i.test(part) &&
+      !URL_NOISE.test(part) &&
+      !/^[A-Z0-9]{10}$/i.test(part) &&  // ASIN / 10-char product IDs
+      !/^\d+$/.test(part) &&             // pure numeric IDs (e.g. 563893)
+      !/^\d[-\d]{4,}$/.test(part) &&    // numeric with dashes (e.g. 1234-567-890)
       !part.includes('=')
     )
     .slice(-2);

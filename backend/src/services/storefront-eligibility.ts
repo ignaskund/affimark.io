@@ -27,14 +27,19 @@ const NETWORK_STOREFRONT_MAP: Record<string, string[]> = {
   rakuten: ['rakuten'],
   webgains: ['webgains'],
   partnerize: ['partnerize'],
+  // Additional common Datafeedr networks
+  belboon: ['belboon'],
+  tradetracker: ['tradetracker'],
+  affilinet: ['affilinet'],
+  daisycon: ['daisycon'],
 };
 
 /**
- * Network names that map to any storefront (open networks where most creators have access).
- * If the user has no storefronts connected at all, we pass everything through
- * since we can't gate effectively without data.
+ * Networks with open/easy enrollment — products from these are accessible to most creators
+ * regardless of their connected storefronts. Treated as eligible even without an explicit
+ * storefront match so they're not penalised.
  */
-const OPEN_NETWORKS = ['amazon'];
+const OPEN_NETWORKS = ['amazon', 'awin', 'impact', 'cj', 'shareasale', 'belboon', 'webgains', 'rakuten', 'tradedoubler', 'tradetracker'];
 
 /**
  * Check if a product is eligible for a user based on their connected storefronts/networks.
