@@ -111,6 +111,35 @@ export interface SemanticScore {
 }
 
 /**
+ * Keyword-overlap fallback score when embeddings are unavailable.
+ * Counts how many words from the search query appear in the product text.
+ * Returns 0-90 (never 100 — embeddings are preferred for top confidence).
+ */
+export function keywordOverlapScore(
+  intent: { searchQuery: string; keywords?: string[]; category?: string },
+  product: { name: string; brand?: string; category?: string; description?: string }
+): number {
+  const queryText = [intent.searchQuery, ...(intent.keywords || [])].join(' ');
+  const queryWords = new Set(
+    queryText.toLowerCase().split(/\s+/).filter(w => w.length >= 3)
+  );
+  if (queryWords.size === 0) return 50;
+
+  const productText = [product.name, product.brand, product.category, product.description]
+    .filter(Boolean).join(' ').toLowerCase();
+
+  let matches = 0;
+  for (const word of queryWords) {
+    if (productText.includes(word)) matches++;
+  }
+
+  if (matches === 0) return 20;
+  if (matches === 1) return 40;
+  if (matches === 2) return 60;
+  return Math.min(90, 60 + matches * 10);
+}
+
+/**
  * Semantically re-rank an array of candidate products against a query intent.
  *
  * @param intent       The user's product search intent

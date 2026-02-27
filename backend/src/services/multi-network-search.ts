@@ -35,7 +35,7 @@ import { enrichStatic, computePricePercentiles, enrichDynamic } from './enrichme
 import { checkEligibility } from './storefront-eligibility';
 import { selectDiverseProducts } from './diversity-selector';
 import { generateReasonCodes } from './reason-code-engine';
-import { semanticRerank } from './semantic-ranker';
+import { semanticRerank, keywordOverlapScore } from './semantic-ranker';
 
 /**
  * Category alias groups for fuzzy category matching.
@@ -149,6 +149,9 @@ export interface AlternativeProduct {
   cons?: string[];
   inStock: boolean;
 
+  // Phase A preferred-network tag (set when product came from a Phase A search)
+  _preferredNetwork?: boolean;
+
   // Outcome quality indicators
   requiresVerification?: boolean;
   outcomeWarnings?: string[];
@@ -217,6 +220,14 @@ export async function searchAllNetworks(
   const dedupStats = getDeduplicationStats(rawResults.length, canonicalProducts);
   console.log(`[Multi-Network] Deduplication: ${dedupStats.duplicatesRemoved} duplicates removed (${dedupStats.deduplicationRate.toFixed(1)}%)`);
 
+  // Propagate Phase A tag: if ANY variant was in a preferred network, tag the bestVariant.
+  // This ensures the +5 bonus survives even when the best variant came from Phase B.
+  for (const canonical of canonicalProducts) {
+    if (canonical.variants.some((v: any) => v._preferredNetwork)) {
+      canonical.bestVariant._preferredNetwork = true;
+    }
+  }
+
   // Use best variants for scoring
   const results = canonicalProducts.map(c => c.bestVariant);
 
@@ -248,30 +259,55 @@ export async function searchAllNetworks(
     (typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined);
 
   let semanticScores = new Map<string, number>();
+  let semanticMethod = 'none';
   if (apiKey && results.length > 0) {
     try {
-      semanticScores = await semanticRerank(
-        intent,
-        results.map(p => ({
-          id: p.id,
-          name: p.name,
-          brand: p.brand,
-          category: p.category,
-          description: p.description,
-        })),
-        apiKey,
-        Math.min(results.length, 150)
-      );
-      console.log(`[Multi-Network] Semantic scores computed for ${semanticScores.size} products`);
+      const candidatePayloads = results.map(p => ({
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        category: p.category,
+        description: p.description,
+      }));
+      semanticScores = await semanticRerank(intent, candidatePayloads, apiKey, Math.min(results.length, 150));
+      if (semanticScores.size > 0) {
+        semanticMethod = 'embeddings';
+        const scores = [...semanticScores.values()];
+        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        const min = Math.min(...scores);
+        const max = Math.max(...scores);
+        console.log(`[SemanticRanker] Embedding scores: ${semanticScores.size} products | avg=${avg} min=${min} max=${max}`);
+      } else {
+        console.warn('[SemanticRanker] Embedding call returned empty map — check OpenAI key and quota. Falling back to keyword overlap.');
+      }
     } catch (err) {
       console.warn('[Multi-Network] Semantic reranking failed, falling back to keyword scoring:', err);
     }
+  } else if (!apiKey) {
+    console.warn('[SemanticRanker] No OpenAI API key — using keyword-overlap fallback for all products');
   }
+
+  // Keyword-overlap fallback: used when embeddings are unavailable or returned empty
+  if (semanticScores.size === 0 && results.length > 0) {
+    semanticMethod = 'keyword_overlap';
+    for (const p of results) {
+      semanticScores.set(p.id, keywordOverlapScore(intent, {
+        name: p.name,
+        brand: p.brand,
+        category: p.category,
+        description: p.description,
+      }));
+    }
+    const scores = [...semanticScores.values()];
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    console.log(`[SemanticRanker] Keyword-overlap fallback: ${semanticScores.size} products | avg=${avg}`);
+  }
+  console.log(`[SemanticRanker] Method used: ${semanticMethod}`);
 
   // Phase 3: TRIPLE SCORING with enriched signals + semantic similarity
   const scoredPromises = results.map(async (product, idx) => {
     const signals = enrichedSignals[idx];
-    const semanticScore = semanticScores.get(product.id) ?? 50; // default 50 if embedding unavailable
+    const semanticScore = semanticScores.get(product.id) ?? 50; // default 50 only if product wasn't in the map (e.g. added after rerank)
 
     // A) Profile match score (personalization) — uses enriched signals for full KPI accuracy
     const matchScore = calculateProfileMatchScore(product, userProfile, intent, signals);
@@ -302,11 +338,15 @@ export async function searchAllNetworks(
     // C) Combined score: 35% semantic + 35% match + 30% outcome feasibility
     // Semantic similarity is the primary signal — it catches products that are
     // genuinely similar even when keyword overlap is low.
-    const combinedScore = Math.round(
+    // Phase A products (from user's connected networks) get a small bonus to
+    // surface them above equivalent broad-search alternatives.
+    const phaseABonus = product._preferredNetwork ? 5 : 0;
+    const combinedScore = Math.min(100, Math.round(
       semanticScore * 0.35 +
       matchScore * 0.35 +
-      outcomeFeasibilityScore.overall * 0.30
-    );
+      outcomeFeasibilityScore.overall * 0.30 +
+      phaseABonus
+    ));
 
     // D) Generate structured reason codes
     const reasons = generateReasonCodes(
@@ -715,12 +755,42 @@ async function searchViaDatafeedr(
       (coreKeywords.length >= 2 ? coreKeywords.slice(0, 3).join(' ') : null) ||
       intent.searchQuery;
 
-    // Note: network preference is handled as a scoring signal (C4 "Network affinity" component
-    // in calculateProfileMatchScore), NOT as a hard filter here. Filtering by source_names
-    // causes 0 results when users have storefronts on networks not matched by Datafeedr's
-    // exact source name strings (e.g. "amazon_de" vs "Amazon Deutschland").
+    // ── Phase A: preferred-network search (targeted) ─────────────────────────
+    // Search first within the user's connected networks using source_names.
+    // Phase A results get tagged _preferredNetwork=true and a +5 combined score
+    // bonus later so they surface above equivalent broad-search results.
+    // This gives a quality signal without hard-filtering (which kills results).
+    const preferredSourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
+    const preferredNetworkIds = new Set<string>();
+    if (preferredSourceNames.length > 0) {
+      try {
+        console.log(`[Datafeedr] Phase A: preferred-network search (${preferredSourceNames.join(', ')})`);
+        const phaseAResponse = await searchDatafeedr(
+          {
+            query: primaryQuery,
+            source_names: preferredSourceNames,
+            price_min: priceMinCents,
+            price_max: priceMaxCents,
+            limit: Math.min(limit, 50),
+            in_stock: true,
+          },
+          accessId,
+          secretKey
+        );
+        for (const p of phaseAResponse.products || []) {
+          preferredNetworkIds.add(p._id);
+        }
+        console.log(`[Datafeedr] Phase A: ${preferredNetworkIds.size} preferred-network products found`);
+      } catch (err) {
+        console.warn('[Datafeedr] Phase A search failed (non-fatal):', err);
+      }
+    }
 
-    console.log(`[Datafeedr] Primary query: "${primaryQuery}" (category: ${intent.category}, all networks)`);
+    // Note: network preference is ALSO handled as a scoring signal (C4 component) for
+    // products not in Phase A. Filtering by source_names alone causes 0 results when the
+    // user's storefronts don't map cleanly to Datafeedr source names.
+
+    console.log(`[Datafeedr] Phase B: broad search "${primaryQuery}" (category: ${intent.category}, all networks)`);
 
     // Datafeedr stores finalprice in minor units (cents), matching normalizeAmountFromDatafeedr ÷100.
     // Convert our EUR price band to cents before sending to the API.
@@ -769,7 +839,10 @@ async function searchViaDatafeedr(
       console.log(`[Datafeedr] After merge: ${combinedProducts.length} candidates`);
     }
 
-    return combinedProducts.map(convertToAlternativeProduct);
+    return combinedProducts.map(p => ({
+      ...convertToAlternativeProduct(p),
+      _preferredNetwork: preferredNetworkIds.has(p._id),
+    }));
   } catch (error) {
     console.error('[Multi-Network] Datafeedr search failed:', error);
     return [];
@@ -827,8 +900,9 @@ function calculateProfileMatchScore(
       c => categoriesMatch(c.category, intent.category)
     );
     if (matchingCategory) {
-      // Score 60–90: higher when this is the user's primary category
-      const dominanceBonus = Math.round(matchingCategory.percentage * 30);
+      // Score 60–120: higher when this is the user's primary category.
+      // Multiplier increased from 30→60 to make category dominance a stronger signal.
+      const dominanceBonus = Math.round(matchingCategory.percentage * 60);
       contextScore += (60 + dominanceBonus) * categoryWeight;
     } else {
       contextScore += 50 * categoryWeight; // Neutral for categories outside user's usual mix
@@ -837,9 +911,10 @@ function calculateProfileMatchScore(
   }
 
   // C1b. Hard penalty when the product's own category doesn't match the search intent.
+  // Penalty increased from 40→60 to more aggressively demote off-category products.
   if (intent.category && intent.category !== 'General' && product.category && product.category !== 'General') {
     if (!categoriesMatch(product.category, intent.category)) {
-      contextScore -= 40 * categoryWeight;
+      contextScore -= 60 * categoryWeight;
     }
   }
 
@@ -880,11 +955,28 @@ function calculateProfileMatchScore(
     : 50;
 
   // ── Final weighted combination ─────────────────────────────────────────
-  return Math.min(100, Math.max(0, Math.round(
+  let finalScore = Math.min(100, Math.max(0, Math.round(
     productPriorityScore * 0.55 +
     brandPriorityScore   * 0.25 +
     normalizedContextScore * 0.20
   )));
+
+  // ── White-label / marketplace penalty ─────────────────────────────────
+  // These platforms are known for low-quality products that damage creator credibility.
+  // Apply a -15 penalty when the user's top priorities are quality or brand recognition.
+  const WHITE_LABEL_MERCHANTS = new Set([
+    'temu', 'wish', 'alibaba', 'aliexpress', 'shein', 'banggood', 'gearbest', 'dhgate',
+  ]);
+  const topProductPriorityIds = profile.productPriorities.slice(0, 2).map(p => p.id);
+  const qualityFocused = topProductPriorityIds.some(id =>
+    ['quality', 'brand_recognition', 'reviews'].includes(id)
+  );
+  const merchantNameLower = (product.merchant || '').toLowerCase();
+  if (qualityFocused && WHITE_LABEL_MERCHANTS.has(merchantNameLower)) {
+    finalScore = Math.max(0, finalScore - 15);
+  }
+
+  return finalScore;
 }
 
 

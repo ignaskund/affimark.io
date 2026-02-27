@@ -134,13 +134,29 @@ const qualitySpec: PriorityKpiSpec = {
     }
 
     // Scoring happens before dynamic enrichment (product page fetch) runs.
-    // Returning 0 here actively punishes every Datafeedr product just because
-    // it hasn't been page-fetched yet — collapsing the 55% product-priority
-    // component for users who rank quality #1.
-    // → Return 50 (neutral) so missing data doesn't artificially lower scores.
-    //   Products that survive to the top-N get dynamically enriched afterward
-    //   and their KPIs are re-computed with real rating data.
+    // Use brand recognition tier as a quality proxy when product ratings are missing.
+    // This prevents punishing every Datafeedr product for not yet having a page fetch.
+    // Tier scores reflect typical correlation between brand prestige and product quality.
+    const BRAND_TIER_QUALITY_PROXY: Record<string, number> = {
+      global: 75,       // Nike, Apple, Sony — consistently high quality
+      major: 70,        // Well-known brands with strong QC
+      established: 60,  // Reputable mid-tier brands
+      emerging: 45,     // Less predictable quality
+      niche: 45,        // Specialised but unknown quality track record
+    };
     const isChecked = p.enrichmentLevel === 'full';
+    if (p.brandRecognitionTier && p.brandRecognitionTier in BRAND_TIER_QUALITY_PROXY) {
+      const proxyScore = BRAND_TIER_QUALITY_PROXY[p.brandRecognitionTier];
+      return {
+        score: isChecked ? Math.min(proxyScore, 40) : proxyScore, // if we fetched the page & found nothing, cap it
+        confidence: 'low',
+        reason: `Quality estimated from brand tier (${p.brandRecognitionTier} — ${p.brand || 'brand'}) — no product reviews available yet`,
+        evidenceLabel: `${p.brand || 'Brand'}: ${p.brandRecognitionTier} tier proxy`,
+        evidenceSource: 'brand_intelligence_database',
+        checkedAt: now(),
+        isProxy: true,
+      };
+    }
     return {
       score: isChecked ? 40 : 50, // 40 if we fetched the page and found nothing; 50 if data pending
       confidence: 'low',
