@@ -284,6 +284,9 @@ const STOREFRONT_TO_SOURCE_NAME: Record<string, string> = {
   linkshare: 'linkshare',
   webgains: 'webgains',
   partnerize: 'partnerize',
+  ltk: 'rewardstyle',       // LTK (formerly RewardStyle) — network name in Datafeedr
+  rewardstyle: 'rewardstyle',
+  shopmy: 'shopmy',         // ShopMy if listed as a Datafeedr source
 };
 
 /**

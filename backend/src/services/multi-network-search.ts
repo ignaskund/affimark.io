@@ -620,13 +620,16 @@ async function searchViaDatafeedr(
   const avgPrice = profile.storefrontContext.avgPricePoint;
   if (avgPrice > 0) {
     if (intent.priceRange === 'budget') {
-      priceMax = avgPrice * 0.7;
+      // Budget: anything up to the user's average price point
+      priceMax = avgPrice * 1.0;
     } else if (intent.priceRange === 'premium') {
-      priceMin = avgPrice * 1.3;
+      // Premium: at least half the user's average (avoids ultra-cheap results)
+      priceMin = avgPrice * 0.5;
     } else {
-      // Mid-range: ±30% of user's average
-      priceMin = avgPrice * 0.7;
-      priceMax = avgPrice * 1.3;
+      // Mid-range: broad band — scoring (C3 price-fit component) handles precision.
+      // ±30% was too narrow and caused 0 results for users with storefront data.
+      priceMin = avgPrice * 0.2; // Excludes extreme budget outliers
+      priceMax = avgPrice * 3.0; // Excludes extreme luxury outliers
     }
   }
   // When avgPrice is 0 (new user, no storefront data), don't filter by price at all
@@ -707,17 +710,28 @@ async function searchViaDatafeedr(
       (coreKeywords.length >= 2 ? coreKeywords.slice(0, 3).join(' ') : null) ||
       intent.searchQuery;
 
-    // Resolve user's preferred networks to Datafeedr source names for query-level filtering
-    const sourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
+    // Note: network preference is handled as a scoring signal (C4 "Network affinity" component
+    // in calculateProfileMatchScore), NOT as a hard filter here. Filtering by source_names
+    // causes 0 results when users have storefronts on networks not matched by Datafeedr's
+    // exact source name strings (e.g. "amazon_de" vs "Amazon Deutschland").
 
-    console.log(`[Datafeedr] Primary query: "${primaryQuery}" (category: ${intent.category}, sources: ${sourceNames.length > 0 ? sourceNames.join(', ') : 'all'})`);
+    console.log(`[Datafeedr] Primary query: "${primaryQuery}" (category: ${intent.category}, all networks)`);
+
+    // Datafeedr stores finalprice in minor units (cents), matching normalizeAmountFromDatafeedr ÷100.
+    // Convert our EUR price band to cents before sending to the API.
+    const priceMinCents = priceMin !== undefined ? Math.round(priceMin * 100) : undefined;
+    const priceMaxCents = priceMax !== undefined ? Math.round(priceMax * 100) : undefined;
+
+    if (priceMinCents !== undefined || priceMaxCents !== undefined) {
+      console.log(`[Datafeedr] Price filter (cents): ${priceMinCents ?? '–'} – ${priceMaxCents ?? '–'} (EUR: ${priceMin?.toFixed(2) ?? '–'} – ${priceMax?.toFixed(2) ?? '–'})`);
+    }
 
     const response = await searchDatafeedr(
       {
         query: primaryQuery,
-        source_names: sourceNames.length > 0 ? sourceNames : undefined,
-        price_min: priceMin,
-        price_max: priceMax,
+        // source_names intentionally omitted — network preference is a scoring signal, not a hard filter
+        price_min: priceMinCents,
+        price_max: priceMaxCents,
         limit: limit * 2,
         in_stock: true,
       },
@@ -733,9 +747,9 @@ async function searchViaDatafeedr(
       const fallbackResponse = await searchDatafeedr(
         {
           query: fallbackQuery,
-          source_names: sourceNames.length > 0 ? sourceNames : undefined,
-          price_min: priceMin,
-          price_max: priceMax,
+          // source_names intentionally omitted — see above
+          price_min: priceMinCents,
+          price_max: priceMaxCents,
           limit: limit * 2,
           in_stock: true,
         },
