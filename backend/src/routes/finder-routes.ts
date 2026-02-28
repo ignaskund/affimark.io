@@ -581,12 +581,12 @@ app.post('/enrich-products', async (c) => {
 
     // Fetch products missing category enrichment
     const productsRes = await fetch(
-      `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=id,product_name,brand,category&order=created_at.desc&limit=100`,
+      `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=id,title,brand,category&order=created_at.desc&limit=100`,
       { headers }
     );
     const products: any[] = await productsRes.json();
 
-    const toEnrich = products.filter(p => p.product_name && (!p.category || p.category === 'General'));
+    const toEnrich = products.filter(p => p.title && (!p.category || p.category === 'General'));
     if (toEnrich.length === 0) {
       return c.json({ message: 'No products need enrichment', enriched: 0 });
     }
@@ -601,7 +601,7 @@ app.post('/enrich-products', async (c) => {
       const batch = toEnrich.slice(i, i + 5);
       await Promise.all(batch.map(async (product) => {
         try {
-          const intent = await analyzeProductTitle(product.product_name, c.env);
+          const intent = await analyzeProductTitle(product.title, c.env);
           if (intent.confidence >= 30) {
             await fetch(
               `${supabaseUrl}/rest/v1/user_storefront_products?id=eq.${product.id}`,

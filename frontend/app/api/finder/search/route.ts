@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     let searchResponse = null;
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || '[REDACTED]';
 
       // Call the V2 agentic Product Finder backend
       const finderRes = await fetch(`${backendUrl}/api/finder/search-v2`, {
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       originalProduct,
       alternatives: alternatives,
       alternativesCount: alternatives.length,
-      agentReasoning: searchResponse?.agentReasoning || [],
+      agentReasoning: searchResponse?.agentReasoning || '',
     });
   } catch (error) {
     console.error('[Finder] Search error:', error);
