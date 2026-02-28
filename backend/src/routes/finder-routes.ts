@@ -20,7 +20,7 @@ const SEARCH_TIME_BUDGET_MS = 15000;
 app.use('/*', cors({
   origin: (origin) => {
     const allowed = [
-      'http://localhost:3000',
+      '[REDACTED]',
       'http://localhost:3001',
       'https://affimark.io',
       'https://www.affimark.io',
@@ -491,5 +491,61 @@ Return ONLY valid JSON:
     confidence: bestScore > 0 ? 80 : 50,
   };
 }
+
+/**
+ * POST /api/finder/search-v2
+ * MCP-powered alternative search with iterative multi-strategy approach.
+ * This endpoint uses the new agent orchestrator that:
+ *   - Identifies products more reliably (multi-strategy scraping)
+ *   - Runs multiple Datafeedr queries with different specificity
+ *   - Filters by semantic similarity BEFORE scoring (rejects garbage early)
+ *   - Enforces category coherence and merchant diversity
+ *   - Compares alternatives against the original product
+ */
+app.post('/search-v2', async (c) => {
+  const startTime = Date.now();
+
+  try {
+    const body = await c.req.json();
+    const { userId, input, inputType = 'url' } = body;
+
+    if (!userId) return c.json({ error: 'userId is required' }, 401);
+    if (!input) return c.json({ error: 'input is required' }, 400);
+
+    console.log(`[Finder V2] User: ${userId}, Input: ${input}, Type: ${inputType}`);
+
+    // Budget check
+    const budgetCheck = await checkBudget(userId, 'search_full', c.env);
+    if (!budgetCheck.allowed) {
+      return c.json({ error: budgetCheck.message }, 429);
+    }
+
+    const { runAlternativeSearchAgent } = await import('../mcp/agent');
+    const result = await runAlternativeSearchAgent(input, userId, c.env);
+
+    await logOperationCost(userId, 'search_full', {}, c.env);
+
+    const duration = Date.now() - startTime;
+    console.log(`[Finder V2] Complete in ${duration}ms — ${result.alternatives.length} alternatives from ${result.totalCandidatesEvaluated} evaluated`);
+
+    return c.json({
+      alternatives: result.alternatives,
+      alternativesCount: result.alternatives.length,
+      originalProduct: result.originalProduct,
+      agentReasoning: result.agentReasoning,
+      searchIterations: result.searchIterations,
+      totalEvaluated: result.totalCandidatesEvaluated,
+      status: result.alternatives.length > 0 ? 'ready' : (result.originalProduct.confidence < 15 ? 'product_unidentified' : 'no_alternatives'),
+      meta: {
+        duration,
+        version: 'v2-mcp',
+        intentConfidence: result.originalProduct.confidence,
+      },
+    });
+  } catch (error: any) {
+    console.error('[Finder V2] Error:', error);
+    return c.json({ error: 'Search failed', message: error.message, status: 'failed' }, 500);
+  }
+});
 
 export default app;
