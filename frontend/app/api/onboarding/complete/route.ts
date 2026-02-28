@@ -74,6 +74,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Onboarding Complete] Profile ${effectiveUserId} updated with onboarding_completed=true`);
 
+    // Fire-and-forget: enrich storefront products with category/brand data for better search quality
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
+    fetch(`${backendUrl}/api/finder/enrich-products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: effectiveUserId }),
+    }).catch((e) => console.warn('[Onboarding Complete] Enrichment trigger failed (non-fatal):', e));
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[Onboarding Complete] Unexpected error:', error);

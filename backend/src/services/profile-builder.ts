@@ -198,15 +198,15 @@ async function getUserPriorities(userId: string, env: any) {
 }
 
 /**
- * Analyze user's connected social accounts
+ * Analyze user's connected social accounts.
+ * Queries `user_social_links` (populated during magic onboarding from Linktree scan).
  */
 async function analyzeSocialAccounts(userId: string, env: any) {
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
-  // Get connected social accounts
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/connected_accounts?user_id=eq.${userId}&platform=in.(youtube,instagram,tiktok,twitter)&is_active=eq.true&select=platform,account_identifier`,
+    `${supabaseUrl}/rest/v1/user_social_links?user_id=eq.${userId}&select=platform,url,display_name,follower_count`,
     {
       headers: {
         apikey: supabaseKey,
@@ -227,15 +227,16 @@ async function analyzeSocialAccounts(userId: string, env: any) {
     };
   }
 
-  // NEW: Use lightweight social analyzer
+  console.log(`[Profile Builder] Found ${socials.length} social accounts`);
+
   const { analyzeSocialAccountsLightweight } = await import('./lightweight-social-analyzer');
 
   const accounts = socials.map((s: any) => ({
     platform: s.platform,
-    accountIdentifier: s.account_identifier,
-    followerCount: s.follower_count, // If available
-    bio: s.bio, // If available
-    displayName: s.display_name, // If available
+    accountIdentifier: extractAccountIdentifier(s.url, s.platform),
+    followerCount: s.follower_count,
+    bio: undefined,
+    displayName: s.display_name,
   }));
 
   const analysis = await analyzeSocialAccountsLightweight(accounts);
@@ -249,6 +250,21 @@ async function analyzeSocialAccounts(userId: string, env: any) {
     audienceDemographics: analysis.audienceDemographics,
     estimatedReach: analysis.estimatedReach,
   };
+}
+
+/**
+ * Extract a username/handle from a social URL for analysis.
+ * e.g. "https://youtube.com/@SheaWhitney" → "SheaWhitney"
+ */
+function extractAccountIdentifier(url: string, platform: string): string {
+  if (!url) return '';
+  try {
+    const pathname = new URL(url).pathname.replace(/\/$/, '');
+    const lastSegment = pathname.split('/').pop() || '';
+    return lastSegment.replace(/^@/, '');
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -285,26 +301,37 @@ Return only category names, comma-separated. Be concise.`;
 }
 
 /**
- * Analyze user's storefronts to understand product mix
+ * Analyze user's storefronts to understand product mix.
+ * Uses two tables populated during magic onboarding:
+ *   - `user_storefronts`          — storefront platform + URL (e.g. Amazon, LTK)
+ *   - `user_storefront_products`  — individual products found on those storefronts
  */
 async function analyzeStorefronts(userId: string, env: any) {
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
+  const headers = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  };
 
-  // Get affiliate transactions to understand product mix
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/affiliate_transactions?user_id=eq.${userId}&select=product_name,product_id,platform,commission,revenue&limit=100`,
-    {
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-      },
-    }
+  // 1. Get storefronts (platform info + URLs)
+  const storefrontsRes = await fetch(
+    `${supabaseUrl}/rest/v1/user_storefronts?user_id=eq.${userId}&select=platform,storefront_url,display_name`,
+    { headers }
   );
+  const storefronts = await storefrontsRes.json();
 
-  const transactions = await response.json();
+  // 2. Get storefront products (titles, brands, prices, categories)
+  const productsRes = await fetch(
+    `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=title,brand,category,current_price,platform,product_url&limit=100`,
+    { headers }
+  );
+  const products = await productsRes.json();
 
-  if (!Array.isArray(transactions) || transactions.length === 0) {
+  const hasStorefronts = Array.isArray(storefronts) && storefronts.length > 0;
+  const hasProducts = Array.isArray(products) && products.length > 0;
+
+  if (!hasStorefronts && !hasProducts) {
     console.log('[Profile Builder] No storefront data available');
     return {
       dominantCategories: [],
@@ -314,76 +341,75 @@ async function analyzeStorefronts(userId: string, env: any) {
     };
   }
 
-  // Extract product names for AI categorization.
-  // product_name is a human-readable title (e.g. "Sony WH-1000XM5 Headphones"),
-  // which gives much better intent extraction than product_id (which may be an ASIN).
-  // Keep the full transaction row alongside the name so we can compute per-category
-  // commission rates using the same indices as the returned intents array.
-  const namedTransactions = transactions
-    .filter((t: any) => t.product_name)
-    .slice(0, 50);
-  const productNames = namedTransactions.map((t: any) => t.product_name);
+  console.log(`[Profile Builder] Found ${(storefronts as any[])?.length || 0} storefronts, ${(products as any[])?.length || 0} products`);
 
-  // Categorize products by title using AI (falls back to keyword matching)
-  const intents = await analyzeMultipleNames(productNames, env);
-  const dominantCategories = extractDominantCategories(intents);
-
-  // Build category → commission rates mapping using the same index alignment
-  // between namedTransactions[i] and intents[i].
-  const categoryCommissionRates = new Map<string, number[]>();
-  namedTransactions.forEach((t: any, i: number) => {
-    const category = intents[i]?.category || 'General';
-    const revenue = parseFloat(t.revenue) || 0;
-    const commission = parseFloat(t.commission) || 0;
-    if (revenue > 0 && commission > 0) {
-      const rate = commission / revenue; // fractional (e.g. 0.08 = 8%)
-      const existing = categoryCommissionRates.get(category) || [];
-      categoryCommissionRates.set(category, [...existing, rate]);
+  // 3. Extract preferred networks from storefronts
+  const preferredNetworks: string[] = [];
+  if (hasStorefronts) {
+    for (const sf of storefronts as any[]) {
+      if (sf.platform && !preferredNetworks.includes(sf.platform)) {
+        preferredNetworks.push(sf.platform);
+      }
     }
-  });
+  }
 
-  // Calculate average price point using actual commission rates where available.
-  // revenue / (commission / revenue) = price  → avoids the "assume 5%" bias
-  // that inflated avgPricePoint 2× for creators on high-commission networks (Awin 10%+).
-  const transactionsWithBoth = transactions.filter(
-    (t: any) => (parseFloat(t.revenue) || 0) > 0 && (parseFloat(t.commission) || 0) > 0
+  if (!hasProducts) {
+    return {
+      dominantCategories: [],
+      topBrands: [],
+      avgPricePoint: 0,
+      preferredNetworks,
+    };
+  }
+
+  const productList = products as any[];
+
+  // 4. Categorize products — use existing category if available, else analyze by title
+  const productsNeedingAnalysis = productList.filter(
+    (p: any) => !p.category && p.title && p.title.length > 3
   );
+  const productsWithCategory = productList.filter((p: any) => p.category);
 
-  let avgPricePoint: number;
-  if (transactionsWithBoth.length >= 3) {
-    const avgActualRate =
-      transactionsWithBoth.reduce((sum: number, t: any) => {
-        return sum + parseFloat(t.commission) / parseFloat(t.revenue);
-      }, 0) / transactionsWithBoth.length;
-    const avgRevenue =
-      transactionsWithBoth.reduce((sum: number, t: any) => sum + parseFloat(t.revenue), 0) /
-      transactionsWithBoth.length;
-    avgPricePoint = avgActualRate > 0 ? avgRevenue / avgActualRate : 0;
-  } else {
-    // Fallback: assume ~5% commission (only when both revenue and commission are unavailable)
-    const avgRevenue =
-      transactions.reduce((sum: number, t: any) => sum + (parseFloat(t.revenue) || 0), 0) /
-      transactions.length;
-    avgPricePoint = avgRevenue / 0.05;
+  let intents: ProductIntent[] = [];
+  if (productsNeedingAnalysis.length > 0) {
+    const titles = productsNeedingAnalysis.map((p: any) => p.title);
+    intents = await analyzeMultipleNames(titles, env);
   }
 
-  // Extract preferred networks
-  const networkCounts = new Map<string, number>();
-  for (const t of transactions) {
-    const count = networkCounts.get(t.platform) || 0;
-    networkCounts.set(t.platform, count + 1);
+  // Merge: products that already have a category + AI-analyzed ones
+  const allCategories: string[] = [];
+  for (const p of productsWithCategory) {
+    allCategories.push(p.category);
   }
-  const preferredNetworks = Array.from(networkCounts.entries())
+  for (const intent of intents) {
+    allCategories.push(intent.category);
+  }
+
+  // 5. Calculate dominant categories
+  const categoryCounts = new Map<string, number>();
+  for (const cat of allCategories) {
+    categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
+  }
+  const totalCategorized = allCategories.length || 1;
+  const dominantCategories = Array.from(categoryCounts.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([platform]) => platform);
+    .slice(0, 5)
+    .map(([category, count]) => ({
+      category,
+      percentage: count / totalCategorized,
+      avgCommission: 5.0,
+    }));
 
-  // Extract top brands from intents
+  // 6. Extract top brands from products + intents
   const brandCounts = new Map<string, number>();
+  for (const p of productList) {
+    if (p.brand) {
+      brandCounts.set(p.brand, (brandCounts.get(p.brand) || 0) + 1);
+    }
+  }
   for (const intent of intents) {
     if (intent.brand) {
-      const count = brandCounts.get(intent.brand) || 0;
-      brandCounts.set(intent.brand, count + 1);
+      brandCounts.set(intent.brand, (brandCounts.get(intent.brand) || 0) + 1);
     }
   }
   const topBrands = Array.from(brandCounts.entries())
@@ -391,18 +417,16 @@ async function analyzeStorefronts(userId: string, env: any) {
     .slice(0, 10)
     .map(([brand]) => brand);
 
+  // 7. Calculate average price point from products that have prices
+  const pricedProducts = productList.filter((p: any) => p.current_price && parseFloat(p.current_price) > 0);
+  const avgPricePoint = pricedProducts.length > 0
+    ? pricedProducts.reduce((sum: number, p: any) => sum + parseFloat(p.current_price), 0) / pricedProducts.length
+    : 0;
+
+  console.log(`[Profile Builder] Storefront analysis: ${dominantCategories.length} categories, ${topBrands.length} brands, avg price: ${avgPricePoint.toFixed(2)}, networks: [${preferredNetworks.join(', ')}]`);
+
   return {
-    dominantCategories: dominantCategories.slice(0, 5).map(cat => {
-      const rates = categoryCommissionRates.get(cat.category);
-      const avgCommission = rates && rates.length > 0
-        ? Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 1000) / 10  // fraction → % (1 dp)
-        : 5.0; // fallback when no transaction data for this category
-      return {
-        category: cat.category,
-        percentage: cat.percentage,
-        avgCommission,
-      };
-    }),
+    dominantCategories,
     topBrands,
     avgPricePoint,
     preferredNetworks,
