@@ -34,7 +34,7 @@ import {
 const MAX_ITERATIONS = 4;
 const MIN_QUALITY_CANDIDATES = 5;
 const SEMANTIC_THRESHOLD = 35;
-const COMBINED_SCORE_FLOOR = 40;
+const COMBINED_SCORE_FLOOR = 35;
 const TOP_K = 5;
 
 const WHITE_LABEL_MERCHANTS = new Set([
@@ -107,7 +107,18 @@ export async function runAlternativeSearchAgent(
 
     // Compute semantic similarity in batch
     const queryText = [product.subcategory || product.category, product.title, product.keywords.slice(0, 5).join(' ')].filter(Boolean).join(' ');
-    const semanticScores = await computeSemanticScores(queryText, newCandidates, env);
+    let semanticScores = await computeSemanticScores(queryText, newCandidates, env);
+
+    // Fallback: if embedding API failed, use keyword overlap so we still have scores
+    if (semanticScores.size === 0) {
+      console.log('[Agent] Semantic embeddings returned empty — using keyword overlap fallback');
+      const { keywordOverlapScore } = await import('../services/semantic-ranker');
+      semanticScores = new Map();
+      const intent = { searchQuery: queryText, keywords: product.keywords };
+      for (const c of newCandidates) {
+        semanticScores.set(c.id, keywordOverlapScore(intent, { name: c.name, brand: c.brand, category: c.category, description: c.description }));
+      }
+    }
 
     // Pre-filter by semantic score to avoid wasting time scoring garbage
     const semanticFiltered = newCandidates.filter(c => {
@@ -127,7 +138,17 @@ export async function runAlternativeSearchAgent(
       )
     );
 
-    const relevant = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR && s.comparisonToOriginal.categoryMatch);
+    // Log detailed filter stats for debugging
+    const passedCombined = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
+    const passedCategory = passedCombined.filter(s => s.comparisonToOriginal.categoryMatch);
+    console.log(`[Agent] Filter breakdown: ${scored.length} scored → ${passedCombined.length} passed combined≥${COMBINED_SCORE_FLOOR} → ${passedCategory.length} passed category match`);
+    if (passedCombined.length > 0 && passedCategory.length === 0) {
+      console.log(`[Agent] Category mismatch examples: ${passedCombined.slice(0, 3).map(s => `"${s.name.slice(0, 40)}" (cat=${s.category}, orig=${product.category})`).join(', ')}`);
+    }
+
+    // Use category match as soft signal, not hard gate — many Datafeedr products
+    // have wrong/missing categories. Combined score already penalizes mismatches.
+    const relevant = passedCombined;
     allScoredCandidates.push(...relevant);
 
     const avgSem = semanticScores.size > 0
@@ -197,10 +218,16 @@ function generateSearchStrategies(
   const strategies: SearchStrategy[] = [];
 
   // Use AI-generated search queries (most targeted)
-  for (const query of product.searchQueries) {
-    if (query && query.length > 3) {
-      strategies.push({ name: 'primary_query', query });
-    }
+  // Clean noise: HTML entities, stop words, trailing punctuation
+  for (const rawQuery of product.searchQueries) {
+    if (!rawQuery || rawQuery.length < 4) continue;
+    const query = rawQuery
+      .replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ')
+      .replace(/[,;:!]/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+    // Drop overly generic queries (single word or just a brand)
+    if (query.split(/\s+/).length < 2) continue;
+    strategies.push({ name: 'primary_query', query });
   }
 
   // Category + subcategory search (broader)

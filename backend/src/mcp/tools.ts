@@ -229,11 +229,28 @@ If you can't identify it, set confidence to 0.`,
   };
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&#x27;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)));
+}
+
+function cleanProductTitle(rawTitle: string): string {
+  return decodeHtmlEntities(rawTitle)
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/[-–]\s*(black|white|silver|blue|red|pink|gray|grey|gold)\s*$/i, '')
+    .replace(/,\s*\d+\s*(pack|count|ct|pcs?)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildIdentifiedProduct(
   rawTitle: string, brand: string | null, categoryHint: string | null,
   price: number | null, currency: string, source: IdentifiedProduct['source']
 ): IdentifiedProduct {
-  const title = rawTitle.replace(/\s+/g, ' ').trim();
+  const title = cleanProductTitle(rawTitle);
   const keywords = title.toLowerCase().split(/\s+/).filter(w => w.length > 2).slice(0, 10);
 
   const brandName = brand || inferBrand(title);
