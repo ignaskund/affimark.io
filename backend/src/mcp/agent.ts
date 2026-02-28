@@ -1,18 +1,20 @@
 /**
  * MCP Alternative Search Agent — Orchestrator
  *
- * This is the brain. It uses the MCP tools in an intelligent loop:
- *   1. Load creator profile (understand WHO is searching)
- *   2. Identify the product (understand WHAT they inserted)
- *   3. Generate multiple search strategies based on product + profile
- *   4. Execute searches iteratively, evaluate quality, refine if needed
- *   5. Score ALL candidates with full KPI pipeline
- *   6. Return the best alternatives that are BETTER than the original
+ * PURPOSE: Find the BEST alternative product for the same item type,
+ * from a DIFFERENT brand, scored by the creator's specific priorities.
  *
- * Key difference from the old pipeline: the agent ITERATES.
- * If the first search returns garbage, it reformulates and tries again.
- * It also uses the original product as a quality floor — alternatives
- * must be genuinely competitive, not just keyword-matched.
+ * The user inserts a product URL. We identify WHAT it is (e.g. "dry texture
+ * hair spray"), then search Datafeedr for OTHER brands' versions of the same
+ * product type. We score each candidate against the creator's onboarding
+ * priorities (quality, price, sustainability, commission, etc.) and return
+ * the top alternatives that would be BETTER for this creator to promote.
+ *
+ * NOT looking for: same product from different networks, same brand variants,
+ * or random keyword matches.
+ *
+ * LOOKING FOR: genuinely different brands/products for the same item type,
+ * ranked by how well they fit this specific creator's profile and priorities.
  */
 
 import type {
@@ -33,7 +35,7 @@ import {
 
 const MAX_ITERATIONS = 4;
 const MIN_QUALITY_CANDIDATES = 5;
-const SEMANTIC_THRESHOLD = 35;
+const SEMANTIC_THRESHOLD = 30;
 const COMBINED_SCORE_FLOOR = 35;
 const TOP_K = 5;
 
@@ -54,7 +56,7 @@ export async function runAlternativeSearchAgent(
   // ── STEP 1: Load creator profile ──────────────────────────────────────────
   console.log('[Agent] Step 1: Loading creator profile...');
   const profile = await getCreatorProfile(userId, env);
-  console.log(`[Agent] Profile loaded. Confidence: ${profile.confidenceScore}%. Priorities: product=[${profile.productPriorities.slice(0, 3).map(p => p.id).join(',')}] brand=[${profile.brandPriorities.slice(0, 3).map(p => p.id).join(',')}]`);
+  console.log(`[Agent] Profile: confidence=${profile.confidenceScore}% product=[${profile.productPriorities.slice(0, 3).map(p => p.id)}] brand=[${profile.brandPriorities.slice(0, 3).map(p => p.id)}]`);
 
   const qualityFocused = profile.productPriorities.slice(0, 2).some(p =>
     ['quality', 'brand_recognition', 'reviews'].includes(p.id)
@@ -65,28 +67,43 @@ export async function runAlternativeSearchAgent(
   const product = await identifyProduct(productUrl, env);
 
   if (product.confidence < 15 || !product.title) {
-    console.warn('[Agent] Product identification failed');
-    return {
-      originalProduct: product,
-      alternatives: [],
-      searchIterations: [],
-      totalCandidatesEvaluated: 0,
-      agentReasoning: 'Could not identify the product from this URL. The page may be protected or the URL structure is not recognizable.',
-      searchDurationMs: Date.now() - startTime,
-    };
+    // If identification failed, try AI with URL-only
+    if (env.OPENAI_API_KEY) {
+      const aiProduct = await identifyProductWithAI(productUrl, env);
+      if (aiProduct && aiProduct.confidence >= 30) {
+        Object.assign(product, aiProduct);
+      }
+    }
+    if (product.confidence < 15 || !product.title) {
+      return {
+        originalProduct: product, alternatives: [], searchIterations: [],
+        totalCandidatesEvaluated: 0,
+        agentReasoning: 'Could not identify the product from this URL. Try pasting the product name instead.',
+        searchDurationMs: Date.now() - startTime,
+      };
+    }
   }
 
-  console.log(`[Agent] Product identified: "${product.title}" | Brand: ${product.brand || 'unknown'} | Category: ${product.category} | Price: ${product.price || 'unknown'} | Confidence: ${product.confidence}%`);
+  console.log(`[Agent] Product: "${product.title}" | Brand: ${product.brand || '?'} | Category: ${product.category} | Price: $${product.price || '?'} | Confidence: ${product.confidence}%`);
 
-  // ── STEP 3: Generate search strategies ────────────────────────────────────
-  // Multiple queries with different specificity levels to maximize coverage
-  const strategies = generateSearchStrategies(product, profile);
-  console.log(`[Agent] Generated ${strategies.length} search strategies`);
+  // ── STEP 3: Generate search queries for the PRODUCT TYPE (no brand) ──────
+  // This is the critical step. We extract the generic product type description
+  // and strip ALL brand references. "Kristin Ess Dry Texture Hair Spray" → "dry texture hair spray"
+  const productTypeQueries = generateProductTypeQueries(product, env);
+  console.log(`[Agent] Product type queries: ${productTypeQueries.map(q => `"${q}"`).join(', ')}`);
 
-  // ── STEP 4: Iterative search loop ─────────────────────────────────────────
+  // Collect all brand name tokens to exclude (original brand + any variations)
+  const brandExclusions = buildBrandExclusions(product);
+  console.log(`[Agent] Brand exclusions: [${brandExclusions.join(', ')}]`);
+
+  // ── STEP 4: Generate search strategies ────────────────────────────────────
+  const strategies = generateSearchStrategies(productTypeQueries, product, profile);
+  console.log(`[Agent] ${strategies.length} search strategies generated`);
+
+  // ── STEP 5: Iterative search loop ─────────────────────────────────────────
   for (let i = 0; i < Math.min(strategies.length, MAX_ITERATIONS); i++) {
     const strategy = strategies[i];
-    console.log(`[Agent] Iteration ${i + 1}/${strategies.length}: "${strategy.query}" (${strategy.name})`);
+    console.log(`[Agent] Search ${i + 1}/${strategies.length}: "${strategy.query}" (${strategy.name})`);
 
     const candidates = await searchAlternatives(strategy.query, {
       priceMin: strategy.priceMin,
@@ -94,99 +111,86 @@ export async function runAlternativeSearchAgent(
       inStockOnly: true,
       limit: 100,
       sourceNames: strategy.sourceNames,
-      excludeBrands: product.brand ? [product.brand] : undefined,
+      excludeBrands: brandExclusions,
     }, env);
 
-    const newCandidates = candidates.filter(c => !allCandidateIds.has(c.id));
-    newCandidates.forEach(c => allCandidateIds.add(c.id));
+    // Remove candidates that are the same brand under a different name
+    const filtered = candidates.filter(c => {
+      if (!allCandidateIds.has(c.id)) {
+        // Double-check brand exclusion with fuzzy matching
+        return !isSameBrandFuzzy(c.brand, product.brand) &&
+               !isSameBrandFuzzy(c.merchant, product.brand);
+      }
+      return false;
+    });
+    filtered.forEach(c => allCandidateIds.add(c.id));
 
-    if (newCandidates.length === 0) {
+    if (filtered.length === 0) {
       iterations.push({ query: strategy.query, strategy: strategy.name, candidateCount: 0, relevantCount: 0, topScore: 0, avgSemanticScore: 0 });
       continue;
     }
 
-    // Compute semantic similarity in batch
-    const queryText = [product.subcategory || product.category, product.title, product.keywords.slice(0, 5).join(' ')].filter(Boolean).join(' ');
-    let semanticScores = await computeSemanticScores(queryText, newCandidates, env);
+    // Semantic similarity: how close is this candidate to the original product TYPE
+    const semanticQueryText = buildSemanticQueryText(product);
+    let semanticScores = await computeSemanticScores(semanticQueryText, filtered, env);
 
-    // Fallback: if embedding API failed, use keyword overlap so we still have scores
     if (semanticScores.size === 0) {
-      console.log('[Agent] Semantic embeddings returned empty — using keyword overlap fallback');
       const { keywordOverlapScore } = await import('../services/semantic-ranker');
       semanticScores = new Map();
-      const intent = { searchQuery: queryText, keywords: product.keywords };
-      for (const c of newCandidates) {
+      const intent = { searchQuery: semanticQueryText, keywords: product.keywords };
+      for (const c of filtered) {
         semanticScores.set(c.id, keywordOverlapScore(intent, { name: c.name, brand: c.brand, category: c.category, description: c.description }));
       }
     }
 
-    // Pre-filter by semantic score to avoid wasting time scoring garbage
-    const semanticFiltered = newCandidates.filter(c => {
-      const sem = semanticScores.get(c.id) ?? 0;
-      return sem >= SEMANTIC_THRESHOLD;
-    });
+    // Semantic pre-filter
+    const semanticPassed = filtered.filter(c => (semanticScores.get(c.id) ?? 0) >= SEMANTIC_THRESHOLD);
 
-    // Filter white-label merchants when user cares about quality
-    const qualityFiltered = qualityFocused
-      ? semanticFiltered.filter(c => !WHITE_LABEL_MERCHANTS.has(c.merchant.toLowerCase()))
-      : semanticFiltered;
+    // White-label filter for quality-focused creators
+    const qualityPassed = qualityFocused
+      ? semanticPassed.filter(c => !WHITE_LABEL_MERCHANTS.has(c.merchant.toLowerCase()))
+      : semanticPassed;
 
-    // Score surviving candidates
+    // Score candidates against creator's priorities
     const scored = await Promise.all(
-      qualityFiltered.slice(0, 30).map(c =>
+      qualityPassed.slice(0, 30).map(c =>
         scoreCandidate(c, product, profile, semanticScores.get(c.id) ?? 0, env)
       )
     );
 
-    // Log detailed filter stats for debugging
-    const passedCombined = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
-    const passedCategory = passedCombined.filter(s => s.comparisonToOriginal.categoryMatch);
-    console.log(`[Agent] Filter breakdown: ${scored.length} scored → ${passedCombined.length} passed combined≥${COMBINED_SCORE_FLOOR} → ${passedCategory.length} passed category match`);
-    if (passedCombined.length > 0 && passedCategory.length === 0) {
-      console.log(`[Agent] Category mismatch examples: ${passedCombined.slice(0, 3).map(s => `"${s.name.slice(0, 40)}" (cat=${s.category}, orig=${product.category})`).join(', ')}`);
-    }
-
-    // Use category match as soft signal, not hard gate — many Datafeedr products
-    // have wrong/missing categories. Combined score already penalizes mismatches.
-    const relevant = passedCombined;
-    allScoredCandidates.push(...relevant);
+    const passing = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
+    allScoredCandidates.push(...passing);
 
     const avgSem = semanticScores.size > 0
       ? Math.round([...semanticScores.values()].reduce((a, b) => a + b, 0) / semanticScores.size)
       : 0;
+
     iterations.push({
-      query: strategy.query,
-      strategy: strategy.name,
-      candidateCount: newCandidates.length,
-      relevantCount: relevant.length,
-      topScore: relevant.length > 0 ? Math.max(...relevant.map(r => r.combinedScore)) : 0,
+      query: strategy.query, strategy: strategy.name,
+      candidateCount: filtered.length, relevantCount: passing.length,
+      topScore: passing.length > 0 ? Math.max(...passing.map(r => r.combinedScore)) : 0,
       avgSemanticScore: avgSem,
     });
 
-    console.log(`[Agent] Iteration ${i + 1}: ${newCandidates.length} new candidates → ${semanticFiltered.length} semantic pass → ${qualityFiltered.length} quality pass → ${relevant.length} relevant (top score: ${relevant.length > 0 ? Math.max(...relevant.map(r => r.combinedScore)) : 0})`);
+    console.log(`[Agent] Search ${i + 1}: ${candidates.length} raw → ${filtered.length} new → ${semanticPassed.length} semantic → ${qualityPassed.length} quality → ${passing.length} passed (top=${passing.length > 0 ? Math.max(...passing.map(r => r.combinedScore)) : 0})`);
 
-    // Early exit if we have enough quality results
-    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 2) {
-      console.log(`[Agent] Sufficient candidates found (${allScoredCandidates.length}), stopping search`);
+    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 3) {
+      console.log(`[Agent] Sufficient candidates (${allScoredCandidates.length}), stopping`);
       break;
     }
   }
 
-  // ── STEP 5: Final ranking & diversity ─────────────────────────────────────
+  // ── STEP 6: Final ranking & diversity ─────────────────────────────────────
   allScoredCandidates.sort((a, b) => b.combinedScore - a.combinedScore);
 
-  // Deduplicate by name similarity
   const deduped = deduplicateByName(allScoredCandidates);
-
-  // Enforce diversity: max 2 per merchant, prefer different brands
   const diverse = enforceDiversity(deduped, TOP_K);
 
-  // ── STEP 6: Build agent reasoning ─────────────────────────────────────────
   const agentReasoning = buildAgentReasoning(product, profile, diverse, iterations);
 
-  console.log(`[Agent] Complete: ${diverse.length} alternatives from ${allCandidateIds.size} candidates evaluated in ${Date.now() - startTime}ms`);
+  console.log(`[Agent] Done: ${diverse.length} alternatives from ${allCandidateIds.size} evaluated in ${Date.now() - startTime}ms`);
   for (const alt of diverse) {
-    console.log(`  → "${alt.name.slice(0, 60)}" | combined=${alt.combinedScore} semantic=${alt.semanticSimilarity} priority=${alt.priorityWeightedScore} feasibility=${alt.outcomeFeasibility}`);
+    console.log(`  → "${alt.name.slice(0, 55)}" | ${alt.brand} | $${alt.price} | combined=${alt.combinedScore} sem=${alt.semanticSimilarity} pri=${alt.priorityWeightedScore}`);
   }
 
   return {
@@ -197,6 +201,96 @@ export async function runAlternativeSearchAgent(
     agentReasoning,
     searchDurationMs: Date.now() - startTime,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Product Type Query Generation — strips brand, keeps ONLY the item type
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function generateProductTypeQueries(product: IdentifiedProduct, env: any): string[] {
+  const queries: string[] = [];
+  const brandTokens = extractBrandTokens(product.brand);
+
+  // Method 1: Strip brand from the existing searchQueries
+  for (const raw of product.searchQueries) {
+    const cleaned = stripBrandFromQuery(raw, brandTokens);
+    if (cleaned.length > 5) queries.push(cleaned);
+  }
+
+  // Method 2: Strip brand from full title, take first 5-6 meaningful words
+  const titleWithoutBrand = stripBrandFromQuery(product.title, brandTokens);
+  const titleWords = titleWithoutBrand.split(/\s+/).filter(w => w.length > 2).slice(0, 5).join(' ');
+  if (titleWords.length > 5 && !queries.includes(titleWords)) queries.push(titleWords);
+
+  // Method 3: Use subcategory if available (e.g. "Dry Texture Hair Spray")
+  if (product.subcategory && product.subcategory.length > 3) {
+    const subWithoutBrand = stripBrandFromQuery(product.subcategory, brandTokens);
+    if (subWithoutBrand.length > 5 && !queries.includes(subWithoutBrand)) queries.push(subWithoutBrand);
+  }
+
+  // Method 4: Keywords without brand
+  const keywordQuery = product.keywords
+    .filter(k => k.length > 3 && !brandTokens.has(k.toLowerCase()))
+    .slice(0, 4).join(' ');
+  if (keywordQuery.length > 8 && !queries.includes(keywordQuery)) queries.push(keywordQuery);
+
+  // Deduplicate and clean
+  const unique = [...new Set(queries.map(q =>
+    q.replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/[,;:!()[\]]/g, ' ').replace(/\s+/g, ' ').trim()
+  ))].filter(q => q.split(/\s+/).length >= 2);
+
+  return unique.length > 0 ? unique : [product.title.slice(0, 50)];
+}
+
+function extractBrandTokens(brand: string | null): Set<string> {
+  if (!brand) return new Set();
+  return new Set(
+    brand.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 1)
+  );
+}
+
+function stripBrandFromQuery(text: string, brandTokens: Set<string>): string {
+  if (brandTokens.size === 0) return text;
+  return text.split(/\s+/)
+    .filter(word => !brandTokens.has(word.toLowerCase().replace(/[^a-z0-9]/g, '')))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildBrandExclusions(product: IdentifiedProduct): string[] {
+  const exclusions: string[] = [];
+  if (product.brand) {
+    exclusions.push(product.brand);
+    // Add individual brand words for fuzzy matching (e.g. "Kristin" and "Ess")
+    const parts = product.brand.split(/\s+/).filter(w => w.length > 2);
+    if (parts.length > 1) exclusions.push(parts[0]);
+  }
+  return exclusions;
+}
+
+function isSameBrandFuzzy(candidateBrand: string | null | undefined, originalBrand: string | null): boolean {
+  if (!candidateBrand || !originalBrand) return false;
+  const a = candidateBrand.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const b = originalBrand.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aFirst = a.split(' ')[0];
+  const bFirst = b.split(' ')[0];
+  return aFirst.length >= 3 && aFirst === bFirst;
+}
+
+function buildSemanticQueryText(product: IdentifiedProduct): string {
+  // Build a rich text description of the PRODUCT TYPE for semantic matching
+  // Include category context so embeddings understand intent
+  const parts = [
+    product.subcategory || '',
+    product.title,
+    product.category !== 'General' ? product.category : '',
+    product.keywords.slice(0, 5).join(' '),
+  ].filter(Boolean);
+  return parts.join(' ').slice(0, 400);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -212,67 +306,79 @@ interface SearchStrategy {
 }
 
 function generateSearchStrategies(
+  productTypeQueries: string[],
   product: IdentifiedProduct,
   profile: CreatorProfile
 ): SearchStrategy[] {
   const strategies: SearchStrategy[] = [];
 
-  // Use AI-generated search queries (most targeted)
-  // Clean noise: HTML entities, stop words, trailing punctuation
-  for (const rawQuery of product.searchQueries) {
-    if (!rawQuery || rawQuery.length < 4) continue;
-    const query = rawQuery
-      .replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ')
-      .replace(/[,;:!]/g, ' ')
-      .replace(/\s+/g, ' ').trim();
-    // Drop overly generic queries (single word or just a brand)
-    if (query.split(/\s+/).length < 2) continue;
-    strategies.push({ name: 'primary_query', query });
+  // Strategy 1: Direct product type search (most targeted)
+  for (const query of productTypeQueries.slice(0, 2)) {
+    strategies.push({ name: 'product_type', query });
   }
 
-  // Category + subcategory search (broader)
-  if (product.subcategory && product.subcategory.length > 3) {
-    strategies.push({ name: 'subcategory', query: product.subcategory });
-  }
-
-  // Keyword-based search (broadest)
-  const keywordQuery = product.keywords
-    .filter(k => k.length > 3 && (!product.brand || !k.toLowerCase().includes(product.brand.toLowerCase())))
-    .slice(0, 3)
-    .join(' ');
-  if (keywordQuery.length > 5 && !strategies.some(s => s.query === keywordQuery)) {
-    strategies.push({ name: 'keywords', query: keywordQuery });
-  }
-
-  // Price-anchored version of the best query
-  if (product.price && strategies.length > 0) {
+  // Strategy 2: Product type + price range anchored to original
+  if (product.price && productTypeQueries.length > 0) {
     strategies.push({
       name: 'price_anchored',
-      query: strategies[0].query,
+      query: productTypeQueries[0],
       priceMin: Math.round(product.price * 0.3 * 100),
       priceMax: Math.round(product.price * 3.0 * 100),
     });
   }
 
-  // Preferred-network search using user's connected storefronts
+  // Strategy 3: Search within creator's preferred networks
   const { resolveSourceNames } = require('../services/datafeedr-client');
   const sourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
-  if (sourceNames.length > 0 && strategies.length > 0) {
+  if (sourceNames.length > 0 && productTypeQueries.length > 0) {
     strategies.push({
       name: 'preferred_networks',
-      query: strategies[0].query,
+      query: productTypeQueries[0],
       sourceNames,
     });
   }
 
-  // Deduplicate strategies by query
-  const seen = new Set<string>();
-  return strategies.filter(s => {
-    const key = `${s.query}|${s.name}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Strategy 4: Broader category search if product type queries are narrow
+  if (product.subcategory && product.subcategory !== productTypeQueries[0]) {
+    const brandTokens = extractBrandTokens(product.brand);
+    const cleaned = stripBrandFromQuery(product.subcategory, brandTokens);
+    if (cleaned.length > 3) {
+      strategies.push({ name: 'broader_category', query: cleaned });
+    }
+  }
+
+  return strategies;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI Fallback for Product Identification (when scraping fails)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function identifyProductWithAI(url: string, env: any): Promise<IdentifiedProduct | null> {
+  if (!env.OPENAI_API_KEY) return null;
+  try {
+    const { aiComplete, extractJson } = await import('../services/ai-client');
+    const text = await aiComplete({
+      prompt: `What product is sold at this URL? Analyze the URL structure to identify the product.
+URL: ${url}
+
+Return JSON: {"title":"product name","brand":"brand or null","category":"Electronics|Fashion|Home & Garden|Beauty & Health|Sports & Outdoors","subcategory":"specific type","searchQueries":["2-4 word product type WITHOUT brand name","alternative query"],"confidence":0-100}
+
+CRITICAL: searchQueries must describe the product TYPE only, never include the brand. E.g. "cable knit pullover" not "Song of Style pullover".`,
+      maxTokens: 250, apiKey: env.OPENAI_API_KEY,
+    });
+    const parsed = extractJson(text);
+    if (parsed?.title && parsed.confidence > 20) {
+      return {
+        title: parsed.title, brand: parsed.brand || null,
+        category: parsed.category || 'General', subcategory: parsed.subcategory || '',
+        price: null, currency: 'USD', keywords: [],
+        searchQueries: parsed.searchQueries || [], confidence: parsed.confidence,
+        source: 'ai_url',
+      };
+    }
+  } catch {}
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -310,7 +416,6 @@ function enforceDiversity(candidates: ScoredAlternative[], targetSize: number): 
     brandCount.set(brand, (brandCount.get(brand) || 0) + 1);
   }
 
-  // Fill remaining slots if diversity was too strict
   if (result.length < targetSize) {
     for (const c of candidates) {
       if (result.length >= targetSize) break;
@@ -328,23 +433,21 @@ function buildAgentReasoning(
   iterations: SearchIteration[],
 ): string {
   const parts: string[] = [];
-
-  parts.push(`Identified "${product.title}" (${product.category}, ${product.brand || 'unknown brand'}).`);
+  parts.push(`Identified "${product.title}" (${product.category}${product.brand ? `, by ${product.brand}` : ''}).`);
 
   const totalSearched = iterations.reduce((s, i) => s + i.candidateCount, 0);
-  const totalRelevant = iterations.reduce((s, i) => s + i.relevantCount, 0);
-  parts.push(`Searched ${totalSearched} products across ${iterations.length} strategies, found ${totalRelevant} relevant.`);
+  parts.push(`Evaluated ${totalSearched} alternatives from different brands across ${iterations.length} searches.`);
 
   if (profile.productPriorities.length > 0) {
     const top3 = profile.productPriorities.slice(0, 3).map(p => p.id).join(', ');
-    parts.push(`Prioritized by your preferences: ${top3}.`);
+    parts.push(`Ranked by your priorities: ${top3}.`);
   }
 
   if (alternatives.length > 0) {
     const topAlt = alternatives[0];
-    parts.push(`Top pick: "${topAlt.name.slice(0, 50)}" (score ${topAlt.combinedScore}/100) — ${topAlt.reasonSummary || 'strong match'}.`);
+    parts.push(`Best match: "${topAlt.name.slice(0, 50)}" by ${topAlt.brand} (${topAlt.combinedScore}/100).`);
   } else {
-    parts.push('No alternatives met the quality threshold for your priorities.');
+    parts.push('No alternatives from different brands met the quality threshold for your priorities.');
   }
 
   return parts.join(' ');
