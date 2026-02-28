@@ -89,7 +89,7 @@ export async function runAlternativeSearchAgent(
   // ── STEP 3: Generate search queries for the PRODUCT TYPE (no brand) ──────
   // This is the critical step. We extract the generic product type description
   // and strip ALL brand references. "Kristin Ess Dry Texture Hair Spray" → "dry texture hair spray"
-  const productTypeQueries = generateProductTypeQueries(product, env);
+  const productTypeQueries = await generateProductTypeQueries(product, env);
   console.log(`[Agent] Product type queries: ${productTypeQueries.map(q => `"${q}"`).join(', ')}`);
 
   // Collect all brand name tokens to exclude (original brand + any variations)
@@ -97,7 +97,7 @@ export async function runAlternativeSearchAgent(
   console.log(`[Agent] Brand exclusions: [${brandExclusions.join(', ')}]`);
 
   // ── STEP 4: Generate search strategies ────────────────────────────────────
-  const strategies = generateSearchStrategies(productTypeQueries, product, profile);
+  const strategies = await generateSearchStrategies(productTypeQueries, product, profile);
   console.log(`[Agent] ${strategies.length} search strategies generated`);
 
   // ── STEP 5: Iterative search loop ─────────────────────────────────────────
@@ -207,7 +207,7 @@ export async function runAlternativeSearchAgent(
 // Product Type Query Generation — strips brand, keeps ONLY the item type
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function generateProductTypeQueries(product: IdentifiedProduct, env: any): string[] {
+async function generateProductTypeQueries(product: IdentifiedProduct, env: any): Promise<string[]> {
   const queries: string[] = [];
   const brandTokens = extractBrandTokens(product.brand);
 
@@ -238,6 +238,31 @@ function generateProductTypeQueries(product: IdentifiedProduct, env: any): strin
   const unique = [...new Set(queries.map(q =>
     q.replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/[,;:!()[\]]/g, ' ').replace(/\s+/g, ' ').trim()
   ))].filter(q => q.split(/\s+/).length >= 2);
+
+  // AI distillation: produce a concise 2-3 word product-type query for Datafeedr
+  // Datafeedr searches work better with short, specific terms (e.g. "cable knit pullover")
+  if (env?.OPENAI_API_KEY && unique.length > 0) {
+    try {
+      const { aiComplete } = await import('../services/ai-client');
+      const context = unique.slice(0, 3).join(' | ');
+      const distilled = await aiComplete({
+        prompt: `Given these product search queries: "${context}"
+Distill to the BEST 2-3 word product TYPE for affiliate search. Never include brand names.
+Examples: "cable knit pullover", "polarized sunglasses", "dry texture spray", "wireless earbuds"
+Return ONLY the 2-3 word phrase, nothing else.`,
+        maxTokens: 20,
+        apiKey: env.OPENAI_API_KEY,
+      });
+      const phrase = distilled.trim().replace(/^["']|["']$/g, '').toLowerCase();
+      if (phrase && phrase.split(/\s+/).length >= 2 && phrase.split(/\s+/).length <= 4) {
+        // Prepend as the primary query — most concise for Datafeedr
+        console.log(`[Agent] AI distilled query: "${phrase}"`);
+        return [phrase, ...unique.filter(q => q !== phrase)];
+      }
+    } catch (e) {
+      // Non-fatal: fall through to rule-based queries
+    }
+  }
 
   return unique.length > 0 ? unique : [product.title.slice(0, 50)];
 }
@@ -305,11 +330,11 @@ interface SearchStrategy {
   sourceNames?: string[];
 }
 
-function generateSearchStrategies(
+async function generateSearchStrategies(
   productTypeQueries: string[],
   product: IdentifiedProduct,
   profile: CreatorProfile
-): SearchStrategy[] {
+): Promise<SearchStrategy[]> {
   const strategies: SearchStrategy[] = [];
 
   // Strategy 1: Direct product type search (most targeted)
@@ -328,7 +353,7 @@ function generateSearchStrategies(
   }
 
   // Strategy 3: Search within creator's preferred networks
-  const { resolveSourceNames } = require('../services/datafeedr-client');
+  const { resolveSourceNames } = await import('../services/datafeedr-client');
   const sourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
   if (sourceNames.length > 0 && productTypeQueries.length > 0) {
     strategies.push({

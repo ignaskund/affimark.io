@@ -334,6 +334,36 @@ export default function ProductCard({
                 </div>
               )}
 
+              {/* Comparison to original (V2 agent insight) */}
+              {product.comparisonToOriginal && (
+                <div className="flex flex-wrap gap-1.5">
+                  {product.comparisonToOriginal.priceDiff !== 'unknown' && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      product.comparisonToOriginal.priceDiff.startsWith('-')
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'bg-gray-800 text-gray-400 border border-gray-700'
+                    }`}>
+                      vs original: {product.comparisonToOriginal.priceDiff}
+                    </span>
+                  )}
+                  {product.comparisonToOriginal.betterCommission && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      better commission
+                    </span>
+                  )}
+                  {product.comparisonToOriginal.categoryMatch && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      category match
+                    </span>
+                  )}
+                  {product.inStock === false && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                      may be OOS
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Product details row */}
               <div className="flex flex-wrap gap-3">
                 {product.affiliateNetwork && (

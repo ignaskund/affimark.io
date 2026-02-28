@@ -234,7 +234,11 @@ app.post('/search', async (c) => {
 
 /**
  * POST /api/finder/profile/build
- * Manually trigger profile build/refresh
+ * Manually trigger profile build/refresh.
+ * Use forceRefresh: true to bypass the cache and rebuild immediately.
+ *
+ * Alternative: force via SQL (marks stale profiles for rebuild on next search):
+ *   UPDATE user_product_profiles SET updated_at = '2020-01-01' WHERE confidence_score < 70;
  */
 app.post('/profile/build', async (c) => {
   try {
@@ -528,14 +532,25 @@ app.post('/search-v2', async (c) => {
     const duration = Date.now() - startTime;
     console.log(`[Finder V2] Complete in ${duration}ms — ${result.alternatives.length} alternatives from ${result.totalCandidatesEvaluated} evaluated`);
 
+    // Normalize V2 ScoredAlternative fields to match frontend AlternativeProduct type
+    const normalizedAlternatives = result.alternatives.map((alt: any) => ({
+      ...alt,
+      matchScore: alt.combinedScore ?? alt.matchScore ?? 50,
+      matchReasons: alt.reasonCodes ?? alt.matchReasons ?? [],
+      productPriorityKpis: alt.productKpis ?? alt.productPriorityKpis ?? [],
+      brandPriorityKpis: alt.brandKpis ?? alt.brandPriorityKpis ?? [],
+      pros: alt.pros ?? [],
+      cons: alt.cons ?? [],
+    }));
+
     return c.json({
-      alternatives: result.alternatives,
-      alternativesCount: result.alternatives.length,
+      alternatives: normalizedAlternatives,
+      alternativesCount: normalizedAlternatives.length,
       originalProduct: result.originalProduct,
       agentReasoning: result.agentReasoning,
       searchIterations: result.searchIterations,
       totalEvaluated: result.totalCandidatesEvaluated,
-      status: result.alternatives.length > 0 ? 'ready' : (result.originalProduct.confidence < 15 ? 'product_unidentified' : 'no_alternatives'),
+      status: normalizedAlternatives.length > 0 ? 'ready' : (result.originalProduct.confidence < 15 ? 'product_unidentified' : 'no_alternatives'),
       meta: {
         duration,
         version: 'v2-mcp',
@@ -545,6 +560,77 @@ app.post('/search-v2', async (c) => {
   } catch (error: any) {
     console.error('[Finder V2] Error:', error);
     return c.json({ error: 'Search failed', message: error.message, status: 'failed' }, 500);
+  }
+});
+
+/**
+ * POST /api/finder/enrich-products
+ * Enriches user's onboarding products with category/brand data via analyzeProductTitle.
+ * Called after onboarding completes to prepare the profile for quality alternative search.
+ */
+app.post('/enrich-products', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId } = body;
+
+    if (!userId) return c.json({ error: 'userId is required' }, 401);
+
+    const supabaseUrl = c.env.SUPABASE_URL;
+    const supabaseKey = c.env.SUPABASE_SERVICE_KEY;
+    const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' };
+
+    // Fetch products missing category enrichment
+    const productsRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=id,product_name,brand,category&order=created_at.desc&limit=100`,
+      { headers }
+    );
+    const products: any[] = await productsRes.json();
+
+    const toEnrich = products.filter(p => p.product_name && (!p.category || p.category === 'General'));
+    if (toEnrich.length === 0) {
+      return c.json({ message: 'No products need enrichment', enriched: 0 });
+    }
+
+    console.log(`[Enrich] Enriching ${toEnrich.length} products for user ${userId}`);
+
+    const { analyzeProductTitle } = await import('../services/product-intent-analyzer');
+    let enriched = 0;
+
+    // Process in batches of 5 to respect rate limits
+    for (let i = 0; i < toEnrich.length; i += 5) {
+      const batch = toEnrich.slice(i, i + 5);
+      await Promise.all(batch.map(async (product) => {
+        try {
+          const intent = await analyzeProductTitle(product.product_name, c.env);
+          if (intent.confidence >= 30) {
+            await fetch(
+              `${supabaseUrl}/rest/v1/user_storefront_products?id=eq.${product.id}`,
+              {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                  category: intent.category || product.category,
+                  brand: intent.brand || product.brand || null,
+                }),
+              }
+            );
+            enriched++;
+          }
+        } catch (e) {
+          console.warn(`[Enrich] Failed for product ${product.id}:`, e);
+        }
+      }));
+      if (i + 5 < toEnrich.length) await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Trigger profile rebuild to pick up enriched categories
+    await buildUserProfile(userId, c.env, true).catch(() => {});
+
+    console.log(`[Enrich] Done: ${enriched}/${toEnrich.length} products enriched for ${userId}`);
+    return c.json({ message: 'Enrichment complete', enriched, total: toEnrich.length });
+  } catch (error: any) {
+    console.error('[Enrich Products] Error:', error);
+    return c.json({ error: 'Enrichment failed', message: error.message }, 500);
   }
 });
 

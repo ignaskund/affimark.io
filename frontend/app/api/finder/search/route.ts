@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
     try {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787';
 
-      // Call the comprehensive Product Finder backend
-      const finderRes = await fetch(`${backendUrl}/api/finder/search`, {
+      // Call the V2 agentic Product Finder backend
+      const finderRes = await fetch(`${backendUrl}/api/finder/search-v2`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,11 +92,11 @@ export async function POST(request: NextRequest) {
       if (finderRes.ok) {
         searchResponse = await finderRes.json();
 
-        // Extract results from backend response
+        // Extract results from backend response (V2 fields)
         originalProduct = searchResponse.originalProduct || null;
         alternatives = searchResponse.alternatives || [];
 
-        console.log(`[Finder] Backend returned ${alternatives.length} alternatives`);
+        console.log(`[Finder] Backend returned ${alternatives.length} alternatives (V2, ${searchResponse.searchIterations ?? 0} iterations, ${searchResponse.totalCandidatesEvaluated ?? 0} evaluated)`);
       } else {
         const errorText = await finderRes.text();
         console.error(`[Finder] Backend search failed (${finderRes.status}):`, errorText);
@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
       originalProduct,
       alternatives: alternatives,
       alternativesCount: alternatives.length,
+      agentReasoning: searchResponse?.agentReasoning || [],
     });
   } catch (error) {
     console.error('[Finder] Search error:', error);

@@ -61,6 +61,14 @@ export interface ProductData {
   reviewCount?: number;
 }
 
+export interface ComparisonToOriginal {
+  priceDiff: string;
+  categoryMatch: boolean;
+  sameBrand: boolean;
+  betterCommission: boolean;
+  betterForPriority1: boolean;
+}
+
 export interface AlternativeProduct extends ProductData {
   id: string;
   matchScore: number;
@@ -73,6 +81,8 @@ export interface AlternativeProduct extends ProductData {
   cons: string[];
   productPriorityKpis?: PriorityKpi[];
   brandPriorityKpis?: PriorityKpi[];
+  comparisonToOriginal?: ComparisonToOriginal;
+  inStock?: boolean;
 }
 
 export interface PriorityKpi {

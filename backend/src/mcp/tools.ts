@@ -133,6 +133,28 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
     }
   }
 
+  // Strategy 2b: Generic URL slug parser for non-Amazon JS-heavy sites (e.g. Revolve, ASOS)
+  // Works on patterns like /product-name-with-hyphens/dp/ID or /category/product-name-words/
+  if (!isAmazon) {
+    try {
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      // Find the longest path segment that looks like a product slug (has hyphens, not just an ID)
+      const slugCandidate = segments
+        .filter(s => s.includes('-') && s.length > 15 && !/^[A-Z0-9-]{6,15}$/.test(s))
+        .sort((a, b) => b.length - a.length)[0];
+      if (slugCandidate) {
+        // Convert slug to title: "song-of-style-naara-cable-crew-pullover-in-brown" → proper title
+        const words = slugCandidate.split('-').filter(w => w.length > 1 && !/^\d+$/.test(w));
+        const title = words.join(' ');
+        if (title.length > 10 && words.length >= 3) {
+          console.log(`[MCP identify_product] Generic slug extracted: "${title}" from ${parsed.hostname}`);
+          return buildIdentifiedProduct(title, null, null, null, 'USD', 'url_slug');
+        }
+      }
+    } catch (e) { /* invalid URL, fall through */ }
+  }
+
   // Strategy 3: Scrape the product page (works for ANY URL)
   try {
     const cleanUrl = isAmazon && asinMatch ? `https://www.amazon.com/dp/${asinMatch[1]}` : url;
@@ -473,9 +495,9 @@ export async function scoreCandidate(
 
   const priorityWeightedScore = Math.round(productPriorityScore * 0.65 + brandPriorityScore * 0.35);
 
-  const combinedScore = Math.min(100, Math.round(
-    semanticScore * 0.35 + priorityWeightedScore * 0.35 + feasibility.overall * 0.30
-  ));
+  const baseScore = semanticScore * 0.35 + priorityWeightedScore * 0.35 + feasibility.overall * 0.30;
+  const stockBonus = candidate.inStock === true ? 10 : candidate.inStock === false ? -10 : 0;
+  const combinedScore = Math.min(100, Math.max(0, Math.round(baseScore + stockBonus)));
 
   const priceDiff = originalProduct.price && candidate.price
     ? ((candidate.price - originalProduct.price) / originalProduct.price * 100).toFixed(0) + '%'
