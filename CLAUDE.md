@@ -1,12 +1,38 @@
 ## AffiMark v2 – Claude Code Guide
 
-**"Revenue protection for affiliate creators. Tax sanity included."**
+**"Optimize for Revenue That Stays."**
 
-AffiMark is the Creator Operations Platform for storefront owners. We aggregate income from all platforms (Amazon, Awin, LTK, ShopMy), detect revenue leaks, suggest better-paying programs, and make tax season a one-click affair.
+AffiMark is **affiliate revenue risk intelligence** for storefront owners. We analyze entire creator portfolios across all platforms (Amazon, Awin, LTK, ShopMy), score every product for risk, flag fragile revenue, and suggest better alternatives — so creators can protect margin, not just scale traffic.
 
-**Positioning:** This is NOT "another analytics dashboard." This is revenue protection + operational sanity + tax readiness.
+**Positioning:** This is NOT "another analytics dashboard" or "another link optimizer." This is **risk-adjusted affiliate revenue** — the first platform that treats affiliate income like a portfolio to be audited, not just a number to grow.
 
-**PRIMARY FOCUS: Alternative Search Quality.** The onboarding flow (Linktree URL scan + priority ranking) exists to maximize the quality of alternative product search. See `AGENTS.md` for the complete onboarding→search data pipeline and quality principles.
+**PRIMARY FOCUS: Portfolio Risk Audit + Alternative Search Quality.** The onboarding flow (Linktree URL scan + priority ranking) feeds both the portfolio audit and the alternative product search. See `AGENTS.md` for the complete data pipeline and `AGENT_INSTRUCTIONS.md` for MVP task breakdown.
+
+---
+
+## Core Concept: Risk-Adjusted Affiliate Revenue
+
+Most affiliate tools help creators scale traffic. AffiMark helps creators **protect margin**.
+
+**The formula:**
+
+```
+Revenue Stability = f(Merchant Trust, Refund Exposure, Commission Durability, Demand Evidence)
+```
+
+**Four risk signals scored per product (0-100):**
+
+| Signal | What It Measures | Example Risk |
+|--------|-----------------|--------------|
+| **Merchant Stability** | Seller trustworthiness, platform reliability | DHgate seller with 2-star rating |
+| **Refund Risk** | Return rates, category fragility | Fashion/beauty items with 30%+ return rates |
+| **Commission Durability** | Cookie window, program stability, rate history | Amazon 1-day cookie vs Awin 30-day |
+| **Demand Evidence** | Reviews, search volume, seasonal patterns | Product with 3 reviews vs 10,000 |
+
+**Verdicts:**
+- `overall >= 70` → **KEEP** (stable revenue)
+- `overall >= 50 && < 70` → **REVIEW** (moderate risk)
+- `overall < 50` → **REPLACE** (fragile revenue)
 
 ---
 
@@ -26,7 +52,7 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
 - Feel "out of control" with fragmented dashboards
 - GDPR compliance burden is real
 
-**Competitive Moat:** EU-based company. We emphasize data residency and GDPR compliance as creators become wary of US platforms.
+**Competitive Moat:** EU-based company. Data residency and GDPR compliance as creators become wary of US platforms.
 
 ---
 
@@ -34,17 +60,17 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
 
 **NOT this:** "Yet another analytics dashboard" / "We fix affiliate injustice" / "We guarantee higher commissions"
 
-**THIS:** Revenue protection. Operational sanity. Tax readiness. Decision clarity.
+**THIS:** Risk intelligence. Revenue protection. Portfolio clarity.
 
 | Problem | AffiMark Solution | Tangible Value |
 |---------|-------------------|----------------|
-| Income in 5+ dashboards | Unified view + multi-currency | "One login. Know what you made." |
-| Tax prep takes hours | One-click export + tax personas | "German freelancer? Done in 10 seconds." |
+| No idea which products are risky | Portfolio Risk Audit scores every product | "8 of your 47 products are fragile. Here's why." |
+| 65% revenue from one merchant | Merchant concentration detection | "If Amazon changes rates, you lose €2,700/mo." |
+| High-return categories erode earnings | Refund risk scoring by category | "Beauty products: 30% return rate eating your commission." |
+| Short cookie = lost attribution | Commission durability scoring | "1-day cookie on €349 headphones? Here's a 30-day option." |
+| Default to Amazon (3%) | Alternative search finds better programs | "Same product. Triple the commission. €40-€80/mo extra." |
 | Links break silently | Health monitoring + loss estimates | "This link was broken 6 hrs. Saved: €42-€110." |
-| Default to Amazon (3%) | Smart Link Optimizer shows 12% options | "Same product. Triple the commission." |
-| In-app browsers kill tracking | Detection + escape prompt | "Your tag survives. You get paid." |
-| Products go OOS | Auto-alternatives + alerts | "Traffic still earns while you sleep." |
-| Uncertainty about tracking | Attribution diagnostics (not promises) | "Confidence check: your tag arrived." |
+| Tax prep takes hours | One-click export + tax personas | "German freelancer? Done in 10 seconds." |
 
 ---
 
@@ -62,9 +88,16 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
          ▼            ▼            ▼            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    AFFIMARK CORE                                 │
+│                                                                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  ★ Portfolio Risk Audit (HERO)                           │   │
+│   │  Score every product → Flag fragile revenue →            │   │
+│   │  Suggest alternatives                                    │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                  │
 │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
 │   │   Unified   │  │   Revenue   │  │   Smart     │             │
-│   │  Dashboard  │  │ Loss Ledger │  │  Optimizer  │ ★ HERO     │
+│   │  Dashboard  │  │ Loss Ledger │  │  Optimizer  │             │
 │   └─────────────┘  └─────────────┘  └─────────────┘             │
 │   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
 │   │  Tax-Ready  │  │   In-App    │  │ Attribution │             │
@@ -79,658 +112,170 @@ AffiMark is the Creator Operations Platform for storefront owners. We aggregate 
 
 ---
 
+## Current MVP: Portfolio Risk Audit
+
+The current sprint is building the **Portfolio Risk Audit** — the hero feature promised on the landing page. See `AGENT_INSTRUCTIONS.md` for the complete task breakdown.
+
+### What's Being Built (6 Tasks)
+
+| Task | What | File(s) | Status |
+|------|------|---------|--------|
+| 1 | Portfolio audit backend endpoint | `backend/src/routes/portfolio-routes.ts` | To build |
+| 2 | Portfolio audit frontend page | `frontend/app/dashboard/portfolio-audit/page.tsx` | To build |
+| 3 | Product risk card in finder | `frontend/components/finder/ProductRiskCard.tsx` | To build |
+| 4 | Landing page | `frontend/app/page.tsx` | To build |
+| 5 | Dashboard integration | `frontend/app/dashboard/page.tsx` | To build |
+| 6 | Product finder pre-fill from audit | `frontend/components/finder/ProductFinder.tsx` | To build |
+
+### What Already Exists (DO NOT rebuild)
+
+**Backend (`backend/src/`):**
+- **MCP Agent** (`mcp/agent.ts`): Product identification + alternative search via Datafeedr
+- **Outcome Feasibility Scorer** (`services/outcome-feasibility-scorer.ts`): 4 risk signals (merchantRisk, programFriction, demandEvidence, refundRisk)
+- **Enrichment Layer** (`services/enrichment/`): Static + dynamic product enrichment
+- **Priority KPI System** (`services/priority-kpi-specs.ts`): 16 KPIs (8 product + 8 brand)
+- **Profile Builder** (`services/profile-builder.ts`): Loads priorities + social + storefront context
+- **MCP Tools** (`mcp/tools.ts`): `getCreatorProfile`, `identifyProduct`, `searchAlternatives`, `scoreCandidate`
+
+**Frontend (`frontend/`):**
+- **Onboarding flow**: `/onboarding/magic` → `/onboarding/priorities` → dashboard
+- **Product Finder**: `/dashboard/product-finder` with CardStack, ProductCard, FinderInput
+- **Types**: `frontend/types/finder.ts`
+
+**Database (Supabase — `pquedymrcxfzqwfpbrmh`):**
+- Key tables: `profiles`, `user_creator_preferences`, `user_social_links`, `user_storefronts`, `user_storefront_products`, `user_product_profiles`, `product_finder_sessions`
+
+### Execution Order
+
+1. **Task 1** (portfolio audit endpoint) — everything depends on this
+2. **Task 3** (risk card in finder) — small change, high impact
+3. **Task 2** (portfolio audit page) — main deliverable
+4. **Task 4** (landing page) — can parallel with Task 2
+5. **Task 5** (dashboard integration)
+6. **Task 6** (pre-fill from audit)
+
+---
+
+## Landing Page Sections
+
+The landing page positions AffiMark as revenue risk intelligence:
+
+1. **Hero**: "Optimize for Revenue That Stays." + "Run Portfolio Risk Audit" CTA
+2. **The Hidden Problem**: What affiliates measure vs what they ignore
+3. **Risk-Adjusted Revenue**: The formula + 4 metrics with icons
+4. **Remove Fragile Revenue**: What you eliminate vs what you gain
+5. **Differentiation**: "Most tools help you scale traffic. AffiMark helps you protect margin."
+6. **Close**: "Audit Your Revenue Stability" CTA
+
+**Design:** Dark background, minimal/institutional feel, typography-driven, monospace for metrics. Green=stable, amber=review, red=risk.
+
+---
+
 ## Feature Specifications
 
-### FEATURE 1: Universal Data Import (Zero-Effort Onboarding)
+### FEATURE 0: Portfolio Risk Audit (★ HERO — Current Sprint)
 
-**Objective Value:** Creators connect all storefronts in minutes. No manual data entry. Supports MULTIPLE storefronts of the same platform type.
+**Objective:** Analyze a creator's entire product portfolio and score every product for revenue risk.
 
-**Critical:** Onboarding must be "zero effort." Creators are time-poor. If they have to manually input 50 links, they won't.
+**Endpoint:** `POST /api/portfolio/audit`
 
-**User Story:** Creator logs in, uploads 3 Amazon CSVs (DE, UK, US storefronts), connects Awin via OAuth, uploads LTK export. All earnings appear unified within 5 minutes.
-
-**Technical Requirements:**
-- OAuth: Awin, Tradedoubler, Impact
-- CSV parser: Amazon Associates (multiple regions), LTK, ShareASale
-- Data normalization: Handle "shipped" vs "ordered" discrepancies
-- Multi-currency: Auto-convert to user's home currency
-- Multi-storefront: User can have Amazon DE + Amazon UK + Amazon US
-- Deduplication: Avoid double-counting
-
-**Reality Check (Amazon API):**
-- Amazon Associates API requires sales history to get access
-- Default to CSV upload for Amazon (most reliable)
-- Add instructions for exporting from each platform
-
-**Database Schema:**
-```sql
-CREATE TABLE connected_accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  platform TEXT NOT NULL, -- 'amazon_de', 'amazon_uk', 'awin', 'ltk'
-  storefront_name TEXT, -- User-friendly name: "My German Store"
-  account_identifier TEXT,
-  region TEXT, -- 'DE', 'UK', 'US', 'FR'
-  access_token TEXT,
-  refresh_token TEXT,
-  expires_at TIMESTAMPTZ,
-  is_active BOOLEAN DEFAULT true,
-  last_sync_at TIMESTAMPTZ,
-  sync_status TEXT DEFAULT 'pending', -- 'pending', 'syncing', 'success', 'error'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE affiliate_transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  connected_account_id UUID REFERENCES connected_accounts,
-  platform TEXT NOT NULL,
-  region TEXT,
-  transaction_date DATE NOT NULL,
-  product_name TEXT,
-  product_id TEXT,
-  clicks INTEGER DEFAULT 0,
-  orders INTEGER DEFAULT 0,
-  items_shipped INTEGER DEFAULT 0, -- For Amazon
-  revenue DECIMAL(10,2) DEFAULT 0,
-  commission DECIMAL(10,2) DEFAULT 0,
-  original_currency TEXT, -- 'EUR', 'GBP', 'USD'
-  commission_eur DECIMAL(10,2), -- Normalized to EUR
-  exchange_rate DECIMAL(10,6),
-  raw_data JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
----
-
-### FEATURE 2: Unified Earnings Dashboard (Multi-Currency)
-
-**Objective Value:** One view for all affiliate income across all storefronts. All amounts normalized to home currency.
-
-**User Story:** Creator opens dashboard. Sees: "€4,230 this month across 6 storefronts. Amazon DE: €2,100. Amazon UK: £450 (€520). Awin: €1,500."
-
-**Technical Requirements:**
-- Aggregate across all connected accounts
-- Real-time currency conversion (use ECB rates for EU compliance)
-- Home currency preference setting
-- Time filters: today, 7d, 30d, custom
-- Breakdown by platform, storefront, product
-- Show original currency + converted amount
-
-**Dashboard Sections:**
-1. **Total Earnings Card** - Big number in home currency, % change
-2. **Storefront Breakdown** - Each storefront separately (not just by platform)
-3. **Top Products** - Best performing across all storefronts
-4. **Earnings Timeline** - Line chart over time
-5. **Recent Transactions** - Latest 20 with currency indicators
-
----
-
-### FEATURE 3: Tax-Ready Export with Tax Personas
-
-**Objective Value:** One-click export for tax season. GDPR Article 20 compliant. Localized for EU tax situations.
-
-**User Story:** German freelancer clicks "Export for Taxes", selects "German Freelancer" preset and 2024. Gets PDF with EÜR-ready formatting and CSV with all transactions.
-
-**Tax Persona Presets:**
-```
-- "German Freelancer (Freiberufler)" - EÜR format, VAT columns
-- "German Small Business (Kleinunternehmer)" - Simplified, no VAT
-- "Dutch ZZP" - BTW-ready format
-- "French Micro-Entrepreneur" - BIC/BNC columns
-- "UK Sole Trader" - GBP primary, Self Assessment ready
-- "Lithuanian MB" - Dual currency (EUR), local format
-- "Generic EU" - Standard format
-```
-
-**Technical Requirements:**
-- PDF generation with professional formatting
-- CSV export with all fields
-- Tax persona templates (mostly display/column differences)
-- Date range filters
-- Multi-currency handling with exchange rates used
-- VAT indication where applicable
-
----
-
-### FEATURE 4: Link Health Monitor + Revenue Loss Ledger
-
-**Objective Value:** Never send traffic to dead ends. Know exactly what almost went wrong.
-
-**Key Insight:** Creators love knowing what ALMOST went wrong. Frame issues as "money saved."
-
-**User Story:** Creator's Amazon link went 404 at 3 AM. AffiMark detected at 3:05 AM. Alert says: "This link was broken for 6 hours. Based on your traffic patterns, estimated prevented loss: €42-€110. We've flagged it for your review."
-
-**Revenue Loss Ledger Concept:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Revenue Loss Ledger                                            │
-├─────────────────────────────────────────────────────────────────┤
-│  This Month: 3 issues detected, €180-€420 at risk              │
-│                                                                 │
-│  📍 Oct 15 - Amazon camera link broken (6 hours)               │
-│     Estimated affected clicks: 45-120                          │
-│     Estimated revenue at risk: €42-€110                        │
-│     Status: ✅ Resolved                                         │
-│                                                                 │
-│  📍 Oct 12 - Zara dress out of stock (2 days)                  │
-│     Estimated affected clicks: 200-350                         │
-│     Estimated revenue at risk: €80-€180                        │
-│     Status: ⚡ Auto-redirected to alternative                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Database Schema:**
-```sql
-CREATE TABLE tracked_products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  product_url TEXT NOT NULL,
-  product_name TEXT,
-  platform TEXT,
-  asin TEXT,
-  current_price DECIMAL(10,2),
-  stock_status TEXT DEFAULT 'unknown',
-  health_status TEXT DEFAULT 'unknown',
-  last_checked TIMESTAMPTZ,
-  alert_enabled BOOLEAN DEFAULT true,
-  -- For "Dead Stock" auto-alternative
-  fallback_search_url TEXT,
-  auto_fallback_enabled BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE revenue_loss_ledger (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  tracked_product_id UUID REFERENCES tracked_products,
-  issue_type TEXT NOT NULL, -- 'broken_link', 'out_of_stock', 'redirect_error'
-  detected_at TIMESTAMPTZ NOT NULL,
-  resolved_at TIMESTAMPTZ,
-  duration_hours DECIMAL(5,2),
-  estimated_clicks_low INTEGER,
-  estimated_clicks_high INTEGER,
-  estimated_loss_low DECIMAL(10,2),
-  estimated_loss_high DECIMAL(10,2),
-  resolution_type TEXT, -- 'manual', 'auto_fallback', 'auto_recovered'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
----
-
-### FEATURE 5: Dead Stock Auto-Alternative
-
-**Objective Value:** When product goes OOS, traffic still earns. Don't just alert—automate the fix.
-
-**User Story:** Zara dress goes OOS. SmartWrapper automatically redirects to a search page for that dress on LTK until creator manually updates. Alert says: "Your Zara dress link is OOS. We're auto-redirecting to your LTK search for 'Zara midi dress' until you update."
-
-**Technical Requirements:**
-- Detect OOS status from health check
-- Fallback URL per product (user-configured or auto-generated)
-- Auto-generated search URLs: `ltk.to/search?q=zara+midi+dress`
-- SmartWrapper checks fallback condition before redirecting
-- Alert with clear explanation of what's happening
-
----
-
-### FEATURE 6: SmartWrapper Links (Trust-First Design)
-
-**Objective Value:** Own your traffic. Platform-independent links. Full transparency.
-
-**CRITICAL - Address Trust Concerns:**
-Creators are wary of:
-- Link shorteners
-- Redirect layers
-- Platforms "sitting between" them and brands
-
-**Trust Messaging (must be prominent):**
-```
-✓ Your affiliate tags pass through untouched
-✓ We never skim commissions
-✓ Fully transparent redirect chain
-✓ Open in new tab (no framing)
-✓ Your data, your control
-```
-
-**User Story:** Creator creates SmartWrapper `go.affimark.com/camera`. Uses everywhere. Link redirects to Amazon with creator's tag intact. Full click analytics. When product goes OOS, fallback kicks in. Creator can see entire redirect chain.
-
-**Technical Requirements:**
-- Short code generation (unique per user)
-- Destination URL with affiliate tag preserved
-- UTM parameter preservation
-- Fallback URL for OOS/broken scenarios
-- Click analytics (device, geo, referrer)
-- Redirect chain transparency (user can inspect)
-- In-app browser detection (see Feature 7)
-
-**Database Schema:**
-```sql
-CREATE TABLE smartwrappers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  short_code TEXT UNIQUE NOT NULL,
-  name TEXT,
-  destination_url TEXT NOT NULL,
-  affiliate_tag TEXT, -- Extracted/confirmed affiliate tag
-  fallback_url TEXT,
-  fallback_type TEXT, -- 'search', 'category', 'custom'
-  fallback_active BOOLEAN DEFAULT false,
-  click_count INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  -- Trust/transparency
-  redirect_chain_visible BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
----
-
-### FEATURE 7: In-App Browser Detection + Escape Prompt
-
-**Objective Value:** In-app browsers (Instagram, TikTok) kill affiliate tracking. We detect and help users escape.
-
-**User Story:** Fan clicks link in Instagram. AffiMark detects in-app browser. Shows small prompt: "Open in Safari for best experience →". Fan taps, opens in Safari, affiliate tag survives.
-
-**Technical Requirements:**
-- Detect User-Agent for in-app browsers (Instagram, TikTok, Facebook, Twitter)
-- Show non-intrusive interstitial before redirect
-- "Open in Safari/Chrome" button (uses iOS/Android deep links)
-- Track escape rate for analytics
-- Option to disable per SmartWrapper (some creators may not want it)
-
-**Detection Logic:**
-```typescript
-function isInAppBrowser(userAgent: string): boolean {
-  const inAppPatterns = [
-    /FBAN|FBAV/i,      // Facebook
-    /Instagram/i,       // Instagram
-    /Twitter/i,         // Twitter
-    /Line\//i,          // Line
-    /KAKAOTALK/i,       // KakaoTalk
-    /BytedanceWebview/i, // TikTok
-  ];
-  return inAppPatterns.some(pattern => pattern.test(userAgent));
+**Response shape:**
+```json
+{
+  "portfolioSummary": {
+    "totalProducts": 47,
+    "analyzed": 42,
+    "highRisk": 8,
+    "moderateRisk": 12,
+    "stable": 22,
+    "revenueStabilityIndex": 62,
+    "merchantConcentration": { "topMerchant": "Amazon", "percentage": 65 },
+    "avgMerchantStability": 72,
+    "avgRefundRisk": 55,
+    "avgCommissionDurability": 48
+  },
+  "products": [...],
+  "topRisks": [...]
 }
 ```
 
-**Interstitial Design:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│  📱 You're in Instagram's browser                               │
-│                                                                 │
-│  For the best shopping experience and to ensure                 │
-│  any discounts work properly, open in your browser.             │
-│                                                                 │
-│  [🔗 Open in Safari]     [Continue anyway →]                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Frontend page** at `/dashboard/portfolio-audit`: Revenue Stability Index gauge, verdict cards (STABLE/REVIEW/REPLACE/UNANALYZED), risk breakdown bars, product list sorted by risk with "Find Better Alternative" buttons linking to product finder.
 
----
+### FEATURE 1: Universal Data Import (Zero-Effort Onboarding)
 
-### FEATURE 8: Smart Link Optimizer (★ HERO FEATURE)
+**Objective:** Creators connect all storefronts in minutes. No manual data entry.
 
-**Objective Value:** Find better-paying programs for the same product. This is the #1 reason to use AffiMark.
+**Critical:** Onboarding must be "zero effort." The onboarding data powers both portfolio audit quality and alternative search quality.
 
-**Hero Positioning:** "Stop using 3% links when 12% links exist."
+**Flow:** Paste Linktree URL → auto-detect storefronts + products + socials → rank priorities → ready for audit.
 
-**User Story:** Creator pastes Amazon link (3% commission). AffiMark shows: "Same product available via Sony Direct on Awin (8-12%). Based on your traffic, potential extra earnings: €40-€80/month."
+### FEATURE 2: Unified Earnings Dashboard (Multi-Currency)
 
-**CRITICAL - Expectation Management:**
-- Show confidence ranges, not guarantees
-- Show "last verified" dates
-- Note if brand application may be required
-- Position as "decision support" not "automatic money printing"
+**Objective:** One view for all affiliate income. All amounts normalized to home currency.
 
-**Display Format:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Smart Link Optimizer                                           │
-│  Same product. Better programs.                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Current: Amazon Associates (Germany)                           │
-│  Product: Sony WH-1000XM5 Headphones                           │
-│  Commission: 3%                                                 │
-│                                                                 │
-│  Better alternatives found:                                     │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │  🥇 Sony Direct via Awin                                   │ │
-│  │  Commission: 8-12% (varies by campaign)                   │ │
-│  │  Confidence: ●●●●○ High                                   │ │
-│  │  Last verified: 3 days ago                                │ │
-│  │  Note: Requires Awin publisher account                    │ │
-│  │  Potential extra: €35-€70/mo based on your traffic        │ │
-│  │                                            [Create Link →] │ │
-│  ├───────────────────────────────────────────────────────────┤ │
-│  │  🥈 MediaMarkt via Tradedoubler                           │ │
-│  │  Commission: 4-6%                                         │ │
-│  │  Confidence: ●●●○○ Medium                                 │ │
-│  │  Last verified: 1 week ago                                │ │
-│  │                                            [Create Link →] │ │
-│  └───────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-```
+**Dashboard includes:** Portfolio Health Summary card with Revenue Stability Index, products needing attention count, quick risk bars.
 
-**Database Schema:**
-```sql
-CREATE TABLE affiliate_programs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  network TEXT NOT NULL, -- 'awin', 'tradedoubler', 'impact', 'amazon'
-  program_id TEXT,
-  brand_name TEXT NOT NULL,
-  category TEXT,
-  commission_rate_low DECIMAL(5,2), -- Range low
-  commission_rate_high DECIMAL(5,2), -- Range high
-  cookie_duration INTEGER, -- days
-  region TEXT, -- 'EU', 'DE', 'UK'
-  requires_application BOOLEAN DEFAULT false,
-  confidence_score INTEGER, -- 1-5
-  last_verified TIMESTAMPTZ,
-  source TEXT, -- 'api', 'manual', 'community'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### FEATURE 3: Tax-Ready Export with Tax Personas
 
-CREATE TABLE link_optimizations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  original_url TEXT NOT NULL,
-  original_program TEXT,
-  original_rate DECIMAL(5,2),
-  suggested_program_id UUID REFERENCES affiliate_programs,
-  potential_gain_low DECIMAL(10,2),
-  potential_gain_high DECIMAL(10,2),
-  status TEXT DEFAULT 'pending', -- 'pending', 'applied', 'dismissed'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+**Objective:** One-click export for tax season. GDPR Article 20 compliant.
 
----
+**Guardrail:** Never imply tax advice. Use "Formatted for" not "compliant with."
+
+### FEATURE 4: Link Health Monitor + Revenue Loss Ledger
+
+**Objective:** Never send traffic to dead ends. Frame issues as "money saved."
+
+### FEATURE 5: Dead Stock Auto-Alternative
+
+**Objective:** When product goes OOS, traffic still earns. Opt-in only, default OFF.
+
+### FEATURE 6: SmartWrapper Links (Trust-First Design)
+
+**Objective:** Own your traffic. Platform-independent links. Full transparency.
+
+### FEATURE 7: In-App Browser Detection + Escape Prompt
+
+**Objective:** Detect in-app browsers and help users escape to preserve tracking. Best-effort.
+
+### FEATURE 8: Smart Link Optimizer
+
+**Objective:** Find better-paying programs for the same product. Confidence ranges, not guarantees.
 
 ### FEATURE 9: Attribution Diagnostics (NOT "Protection")
 
-**Objective Value:** Confidence checks for your affiliate links. Know if your tag is likely to arrive.
-
-**CRITICAL - Expectation Management:**
-
-What we CAN do:
-- Detect broken redirect chains
-- Detect missing affiliate parameters in final URL
-- Detect platform-side stripping
-- Provide "Testing Mode" for manual verification
-
-What we CANNOT do:
-- Detect last-click overrides by coupon extensions (Honey, etc.)
-- Force platforms or brands to pay retroactively
-- Guarantee commissions
-
-**Position as:** "Attribution diagnostics & confidence checks" - NOT "protection" in legal/financial sense.
-
-**Testing Mode:**
-Creator clicks their own SmartWrapper → AffiMark shows "Tracking Confirmed ✓" with full chain visibility.
-
-**User Story:** Creator runs attribution check on Sephora link. AffiMark follows redirect chain. Shows: "Confidence: HIGH ✓. Your tag (jessica-20) appears in final URL. Cookie window: 30 days. Note: This does not guarantee commission if user has coupon extensions installed."
-
-**Display:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Attribution Diagnostics                                        │
-│  Confidence check for: go.affimark.com/sephora-lipstick        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ✅ Confidence: HIGH                                            │
-│                                                                 │
-│  Redirect Chain:                                                │
-│  1. go.affimark.com/sephora-lipstick                           │
-│  2. → prf.hn/click/aff123 (Awin)                               │
-│  3. → sephora.com/product/xyz?aid=jessica-20 ✓                 │
-│                                                                 │
-│  Your affiliate ID: jessica-20                                  │
-│  Final URL contains ID: ✅ Yes                                  │
-│  Cookie window: 30 days                                         │
-│                                                                 │
-│  ⚠️ Disclaimer: This confirms your tag reaches the retailer.   │
-│  Coupon extensions may still override at checkout.             │
-│                                                                 │
-│  [🧪 Test Mode: Click as if you're a fan]                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
+**Objective:** Confidence checks for affiliate links. Diagnostics, not guarantees.
 
 ### FEATURE 10: Platform Reliability Score
 
-**Objective Value:** Show patterns over time. Validate creators' gut feelings about platforms.
-
-**User Story:** Creator suspects LTK links break more often. AffiMark shows: "LTK: 94% uptime, 3 OOS events this month. Amazon DE: 99% uptime, 1 broken link."
-
-**Display:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Platform Reliability (Last 30 Days)                            │
-├─────────────────────────────────────────────────────────────────┤
-│  Amazon DE         ████████████████████ 99.2%   1 issue        │
-│  Amazon UK         ███████████████████░ 98.5%   2 issues       │
-│  Awin              ████████████████████ 99.8%   0 issues       │
-│  LTK               ██████████████████░░ 94.1%   4 issues       │
-│  ShopMy            ███████████████████░ 97.3%   1 issue        │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Not accusations—patterns.** Let creators draw their own conclusions.
-
----
+**Objective:** Show patterns over time. Not accusations — patterns.
 
 ### FEATURE 11: Brand Pitch Deck Generator
 
-**Objective Value:** If we know conversion rates and EPC, we have data for a Media Kit.
-
-**User Story:** Creator clicks "Generate Performance Report." Gets PDF with best-performing categories, click-through rates, conversion data. Uses for brand negotiations.
-
-**Report Contents:**
-- Audience reach (total clicks across storefronts)
-- Top categories by performance
-- Conversion rates by platform
-- Average order value
-- Geographic distribution
-- "Professional Summary" paragraph (AI-generated)
+**Objective:** Generate performance reports for brand negotiations.
 
 ---
 
 ## Feature Feasibility & Guardrails
 
-### Feasibility Summary
-
 | Feature | Status | Key Constraint |
 |---------|--------|----------------|
-| Universal Data Import | ✅ Safe | Engineering work, not research |
-| Unified Dashboard | ✅ Safe | Currency + timezone must be rock-solid |
-| Tax-Ready Export | ⚠️ Legal framing | Never imply tax advice |
-| Link Health Monitor | ✅ Strong | OOS detection: easy on Amazon, harder on JS-heavy sites |
-| Revenue Loss Ledger | ✅ Gold | Uses your own detected events |
-| Dead Stock Auto-Alternative | ⚠️ Opt-in required | Must be explicit opt-in, conservative defaults |
-| SmartWrappers | ✅ Critical | Transparency UI matters more than backend |
-| In-App Browser Detection | ⚠️ Best-effort | Cannot force exit; some apps restrict behavior |
-| Smart Link Optimizer | ⚠️ High value, needs discipline | Rates often private, tiered, or creator-specific |
-| Attribution Diagnostics | ✅ Well scoped | Your framing is correct |
-| Platform Reliability Score | ⚠️ Methodological rigor | Avoid any implication of blame |
-| Brand Pitch Deck | ✅ Safe | All inputs already exist in system |
+| Portfolio Risk Audit | ★ Current Sprint | Uses existing feasibility scorer |
+| Universal Data Import | Built (onboarding) | Linktree scan working |
+| Unified Dashboard | Built (basic) | Needs portfolio health card |
+| Tax-Ready Export | Planned | Never imply tax advice |
+| Link Health Monitor | Planned | OOS detection: easy on Amazon, harder on JS-heavy |
+| Smart Link Optimizer | Built (V2 agent) | Rates often private/tiered |
+| Attribution Diagnostics | Planned | Framing is correct |
 
----
+### Key Guardrails
 
-### Feature-Specific Guardrails
-
-#### ★ Smart Link Optimizer (HERO)
-**Hard constraints:**
-- Commission rates are often private, tiered, or creator-specific
-- Some programs change rates without notice
-- Some require application approval
-
-**Required guardrails:**
-```
-✓ Store RANGES, not absolutes (commission_rate_low, commission_rate_high)
-✓ Display confidence scores (1-5 stars)
-✓ Show "last verified" timestamps (essential)
-✓ Cache results aggressively (daily/weekly refresh)
-✓ Note application requirements
-✓ Position as "decision support" NOT "certainty"
-```
-
-**Never say:** "You will earn 12%"
-**Always say:** "Programs typically pay 8-12% (verified 3 days ago)"
-
----
-
-#### Tax-Ready Export
-**Critical legal constraint:** Never imply tax advice.
-
-**Required wording:**
-```
-✓ "Formatted for" (not "compliant with")
-✓ "Commonly accepted structure" (not "official format")
-✓ "Review with your accountant" (always include)
-```
-
-**Never say:** "This is your tax return"
-**Always say:** "Export formatted for German Freelancer (EÜR structure). Please review with your accountant."
-
----
-
-#### Dead Stock Auto-Alternative
-**Risks:**
-- Creators may not want automatic substitution
-- Brand mismatch risk
-- Could redirect to competitor products
-
-**Required safeguards:**
-```
-✓ Explicit opt-in per link (default OFF)
-✓ Clear "what we redirected to" transparency
-✓ Conservative defaults (pause traffic > auto-redirect)
-✓ Alert creator immediately when fallback activates
-✓ Easy one-click revert
-```
-
----
-
-#### In-App Browser Detection
-**Technical limitations:**
-- Cannot force exit from in-app browser
-- Some apps (TikTok especially) restrict behavior
-- iOS/Android deep links don't always work
-
-**Position as:** "Best-effort improvement" NOT "guaranteed fix"
-
-**UI must include:** "Continue anyway" option (don't trap users)
-
----
-
-#### Platform Reliability Score
-**What to avoid:**
-- Any implication of blame or fraud
-- Any ranking that looks like accusation
-- Absolute statements about platform quality
-
-**Required framing:**
-```
-Label as: "Observed link stability metrics (based on your links)"
-NOT: "Platform reliability ranking"
-```
-
-**Include disclaimer:** "Based on health checks for your tracked products. Results vary by link and time period."
-
----
-
-## Recommended Build Order
-
-**Strategic rationale:** Early value → Early trust → Early "saved me money" stories
-
-| Phase | Features | Why This Order |
-|-------|----------|----------------|
-| **1** | Universal Import + Dashboard | Immediate value, low risk |
-| **2** | SmartWrapper + Link Health | Trust-building, tangible protection |
-| **3** | Revenue Loss Ledger | Creates "AffiMark saved me €X" stories |
-| **4** | Smart Link Optimizer (carefully) | Hero feature, requires discipline |
-| **5** | Tax Personas | High value for EU, needs legal framing |
-| **6** | Attribution Diagnostics | Lower priority, well-scoped |
-| **7** | Everything else | In-app detection, pitch deck, reliability score |
-
----
-
-## Implementation Phases (Revised)
-
-### Phase 1: Universal Import + Dashboard (Week 1-2)
-| Task | Priority | Effort |
-|------|----------|--------|
-| Database schema + migrations | Critical | 1 day |
-| CSV import for Amazon (multi-region) | Critical | 2 days |
-| Multi-currency normalization (ECB rates) | Critical | 1 day |
-| Unified earnings dashboard UI | Critical | 3 days |
-
-### Phase 2: SmartWrappers + Link Health (Week 3-4)
-| Task | Priority | Effort |
-|------|----------|--------|
-| SmartWrapper CRUD with trust messaging | Critical | 1 day |
-| Link health checker service | Critical | 2 days |
-| Click analytics | High | 2 days |
-| Alert system (money-saved framing) | High | 1 day |
-
-### Phase 3: Revenue Loss Ledger (Week 4)
-| Task | Priority | Effort |
-|------|----------|--------|
-| Loss estimation service | High | 1 day |
-| Loss ledger UI | High | 1 day |
-| Historical EPC calculation | High | 1 day |
-
-### Phase 4: Smart Link Optimizer (Week 5-6) ★ HERO
-| Task | Priority | Effort |
-|------|----------|--------|
-| Affiliate programs database + seeding | Critical | 2 days |
-| URL parser (brand extraction) | High | 2 days |
-| Comparison with confidence scores + ranges | High | 2 days |
-| Optimizer UI with all guardrails | High | 2 days |
-
-### Phase 5: Tax Personas (Week 7)
-| Task | Priority | Effort |
-|------|----------|--------|
-| Tax persona templates (formatting only) | High | 1 day |
-| PDF generation with legal disclaimers | High | 2 days |
-| CSV export | Medium | 1 day |
-
-### Phase 6: Attribution Diagnostics (Week 7-8)
-| Task | Priority | Effort |
-|------|----------|--------|
-| Redirect chain follower | High | 1 day |
-| Testing Mode | High | 1 day |
-| Diagnostics UI with disclaimers | High | 1 day |
-
-### Phase 7: Platform Integrations + Polish (Week 8-9)
-| Task | Priority | Effort |
-|------|----------|--------|
-| Awin OAuth + sync | High | 2 days |
-| Tradedoubler OAuth + sync | High | 2 days |
-| In-app browser detection (best-effort) | Medium | 1 day |
-| Dead Stock auto-fallback (opt-in) | Medium | 1 day |
-| Platform Reliability Score | Medium | 1 day |
-| Brand Pitch Deck generator | Medium | 2 days |
-
----
-
-## Alert Language (Money-Saved Framing)
-
-**DON'T say:** "Link broken"
-**DO say:** "This link was broken for 6 hours. Estimated prevented loss: €42-€110."
-
-**DON'T say:** "Product out of stock"
-**DO say:** "We auto-redirected your Zara dress traffic to LTK search. Estimated earnings preserved: €25-€60."
-
-**DON'T say:** "Attribution check passed"
-**DO say:** "Confidence: HIGH. Your tag jessica-20 appears in the final URL."
+- **Never claim guaranteed commission increases** — use ranges and estimates
+- **Attribution is "diagnostics" not "protection"** — manage expectations
+- **SmartWrapper transparency** — user can always see redirect chain
+- **No commission skimming** — be explicit about this
+- **EU-first messaging** — emphasize GDPR compliance, data residency
+- **Money-saved framing** — alerts show value, not just problems
+- **Risk scores are decision support** — not financial advice
 
 ---
 
@@ -740,45 +285,48 @@ NOT: "Platform reliability ranking"
 backend/
 ├── src/
 │   ├── index.ts
-│   ├── api/
-│   │   ├── auth-routes.ts
-│   │   ├── accounts-routes.ts      # Multi-storefront connections
-│   │   ├── transactions-routes.ts  # Earnings data
-│   │   ├── export-routes.ts        # Tax exports with personas
-│   │   ├── smartwrapper-routes.ts  
-│   │   ├── optimizer-routes.ts     # ★ Hero feature
-│   │   ├── attribution-routes.ts   # Diagnostics, not protection
-│   │   ├── health-routes.ts        # Link health + loss ledger
-│   │   ├── pitch-routes.ts         # Brand pitch deck
-│   │   └── gdpr-routes.ts
+│   ├── api.ts                         # Route mounting
+│   ├── mcp/
+│   │   ├── agent.ts                   # MCP alternative search agent
+│   │   ├── tools.ts                   # getCreatorProfile, identifyProduct, etc.
+│   │   └── types.ts                   # AgentSearchResult, etc.
+│   ├── routes/
+│   │   ├── finder-routes.ts           # Product finder (search-v2)
+│   │   ├── portfolio-routes.ts        # ★ Portfolio audit (NEW)
+│   │   └── agent-routes.ts
 │   ├── services/
-│   │   ├── csv-importer.ts         # Multi-region Amazon
-│   │   ├── currency-converter.ts   # ECB rates
-│   │   ├── awin-client.ts
-│   │   ├── tradedoubler-client.ts
-│   │   ├── health-checker.ts
-│   │   ├── loss-estimator.ts       # Revenue loss calculations
-│   │   ├── optimizer.ts            # Program comparison
-│   │   ├── attribution-checker.ts  # Redirect chain analysis
-│   │   ├── in-app-detector.ts      # Browser detection
-│   │   ├── pitch-generator.ts      # PDF generation
-│   │   └── param-preserver.ts
+│   │   ├── profile-builder.ts         # UserProfile from onboarding data
+│   │   ├── multi-network-search.ts    # Dual-scoring search + ranking
+│   │   ├── outcome-feasibility-scorer.ts  # 4 risk signals
+│   │   ├── product-intent-analyzer.ts # AI intent extraction
+│   │   ├── datafeedr-client.ts        # Datafeedr API
+│   │   ├── enrichment/               # Static + dynamic enrichment
+│   │   └── verifier/                 # 3-pillar scoring
 │   └── workers/
-│       ├── health-check-cron.ts
-│       ├── sync-cron.ts
-│       └── exchange-rate-cron.ts
+│       └── health-check-cron.ts
 
 frontend/
 ├── app/
-│   ├── dashboard/                   # Unified view + multi-currency
-│   ├── storefronts/                 # Connected accounts (multi)
-│   ├── products/                    # Tracked products + loss ledger
-│   ├── optimizer/                   # ★ Hero feature
-│   ├── smartwrappers/
-│   ├── attribution/                 # Diagnostics
-│   ├── exports/                     # Tax with personas
-│   ├── pitch/                       # Brand deck generator
-│   └── settings/
+│   ├── page.tsx                       # Landing page (risk audit messaging)
+│   ├── dashboard/
+│   │   ├── page.tsx                   # Dashboard + portfolio health card
+│   │   ├── portfolio-audit/page.tsx   # ★ Portfolio audit page (NEW)
+│   │   ├── product-finder/           # Alternative search
+│   │   └── ...
+│   └── onboarding/
+│       ├── magic/                    # Linktree scan
+│       └── priorities/               # Priority ranking
+├── components/
+│   ├── finder/
+│   │   ├── ProductFinder.tsx
+│   │   ├── ProductCard.tsx
+│   │   ├── ProductRiskCard.tsx        # ★ Risk card (NEW)
+│   │   └── ...
+│   └── ui/
+├── types/
+│   └── finder.ts                     # Core types
+├── vite.config.ts                    # Vinext/Vite config for Cloudflare deploy
+└── next.config.js                    # Next.js config (dev)
 ```
 
 ---
@@ -787,14 +335,40 @@ frontend/
 
 ```bash
 # Backend
-cd backend && npm run dev      # [REDACTED]
-cd backend && npm run deploy
+cd backend && npm run dev        # Wrangler dev server on port 8787
+cd backend && npm run deploy     # Deploy to Cloudflare Workers
 
-# Frontend
-cd frontend && npm run dev     # [REDACTED]
+# Frontend (Next.js — local dev)
+cd frontend && npm run dev       # Next.js dev on port 3000
 cd frontend && npm run lint
-cd frontend && npm run build
+cd frontend && npm run build     # Next.js production build
+
+# Frontend (Vinext — Cloudflare deploy)
+cd frontend && npm run dev:vinext   # Vite dev server on port 3001
+cd frontend && npm run build:vinext # Vite production build
+cd frontend && npm run deploy       # Build + deploy to Cloudflare Workers
 ```
+
+---
+
+## Deployment
+
+### Backend
+Cloudflare Workers via Wrangler. Config in `backend/wrangler.toml`.
+
+### Frontend
+**Vinext** (Cloudflare's Next.js reimplementation on Vite) for deployment to Cloudflare Workers.
+
+- `vinext deploy` builds and deploys in one command
+- 4.4x faster builds, 57% smaller bundles vs Next.js
+- `vinext check` scans for compatibility issues
+- Existing `next dev` still works for local development
+
+**Known vinext compatibility notes:**
+- `next-auth` relies on Next.js internals — consider migrating to `better-auth` for full vinext compatibility
+- `next/font/google` fonts loaded from CDN (not self-hosted at build time)
+- Images use `@unpic/react` (no local optimization)
+- 88% overall compatibility
 
 ---
 
@@ -802,22 +376,20 @@ cd frontend && npm run build
 
 | Feature | Success Metric |
 |---------|----------------|
-| Onboarding | <5 min to see all earnings |
+| Portfolio Audit | Meaningful risk report for 3+ products |
+| Onboarding | <5 min to see portfolio audit |
 | Dashboard | <2s page load |
-| Optimizer | >80% brand identification, shown alternatives |
+| Alternative Search | >80% brand identification, shown alternatives |
 | Health Check | >99% issue detection accuracy |
 | Loss Ledger | Users can articulate "AffiMark saved me €X" |
-| Attribution | Clear confidence indicators, no false promises |
 | Tax Export | <10s generation, persona-appropriate formatting |
 
 ---
 
-## Trust & Positioning Guardrails
+## Test User
 
-1. **Never claim guaranteed commission increases** - use ranges and estimates
-2. **Attribution is "diagnostics" not "protection"** - manage expectations
-3. **SmartWrapper transparency** - user can always see redirect chain
-4. **No commission skimming** - be explicit about this
-5. **EU-first messaging** - emphasize GDPR compliance, data residency
-6. **Money-saved framing** - alerts show value, not just problems
-7. **Confidence indicators** - show when data might be stale
+User `8acd050f-4dc3-4432-8a95-0057b816b46b` has:
+- 2 storefronts (Amazon, Affiliate)
+- 3 products (Amazon storefront links, Vegamour affiliate link)
+- 4 social accounts (YouTube, Facebook, Instagram, TikTok)
+- Priorities: quality > price > sustainability > reviews > shipping (product), commission > return_policy > customer_service > reputation > payment_speed (brand)
