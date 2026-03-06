@@ -9,7 +9,11 @@ export const metadata = {
   description: 'Find the best products to promote based on your priorities',
 };
 
-export default async function ProductFinderPage() {
+interface ProductFinderPageProps {
+  searchParams: { url?: string };
+}
+
+export default async function ProductFinderPage({ searchParams }: ProductFinderPageProps) {
   const session = await auth();
   const user = session?.user;
 
@@ -17,9 +21,11 @@ export default async function ProductFinderPage() {
     redirect('/sign-in');
   }
 
+  const prefillUrl = searchParams?.url || undefined;
+
   return (
     <div className="h-[calc(100vh-4rem)]">
-      <ProductFinder userId={user.id} />
+      <ProductFinder userId={user.id} prefillUrl={prefillUrl} />
     </div>
   );
 }

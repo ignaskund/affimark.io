@@ -547,6 +547,7 @@ app.post('/search-v2', async (c) => {
       alternatives: normalizedAlternatives,
       alternativesCount: normalizedAlternatives.length,
       originalProduct: result.originalProduct,
+      originalProductRisk: result.originalProductRisk || null,
       agentReasoning: result.agentReasoning,
       searchIterations: result.searchIterations,
       totalEvaluated: result.totalCandidatesEvaluated,

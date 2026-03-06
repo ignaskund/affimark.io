@@ -86,6 +86,36 @@ export async function runAlternativeSearchAgent(
 
   console.log(`[Agent] Product: "${product.title}" | Brand: ${product.brand || '?'} | Category: ${product.category} | Price: $${product.price || '?'} | Confidence: ${product.confidence}%`);
 
+  // ── STEP 2b: Score risk on the ORIGINAL product ───────────────────────────
+  let originalProductRisk: import('./types').AgentSearchResult['originalProductRisk'] | undefined;
+  try {
+    const { enrichStatic } = await import('../services/enrichment');
+    const { scoreOutcomeFeasibility } = await import('../services/outcome-feasibility-scorer');
+    const signals = enrichStatic({
+      name: product.title,
+      brand: product.brand || '',
+      category: product.category,
+      price: product.price || 0,
+      currency: product.currency || 'USD',
+      affiliateNetwork: '',
+      merchant: product.brand || '',
+    });
+    originalProductRisk = await scoreOutcomeFeasibility({
+      name: product.title,
+      brand: product.brand || '',
+      category: product.category,
+      price: product.price || 0,
+      currency: product.currency || 'USD',
+      affiliateNetwork: '',
+      merchantName: product.brand || '',
+      commissionRate: signals.commissionRate,
+      cookieDuration: signals.cookieDurationDays,
+    }, env);
+    console.log(`[Agent] Original product risk: overall=${originalProductRisk.overall} confidence=${originalProductRisk.confidence}`);
+  } catch (e) {
+    console.warn('[Agent] Could not score original product risk:', e);
+  }
+
   // ── STEP 3: Generate search queries for the PRODUCT TYPE (no brand) ──────
   // This is the critical step. We extract the generic product type description
   // and strip ALL brand references. "Kristin Ess Dry Texture Hair Spray" → "dry texture hair spray"
@@ -195,6 +225,7 @@ export async function runAlternativeSearchAgent(
 
   return {
     originalProduct: product,
+    originalProductRisk,
     alternatives: diverse,
     searchIterations: iterations,
     totalCandidatesEvaluated: allCandidateIds.size,

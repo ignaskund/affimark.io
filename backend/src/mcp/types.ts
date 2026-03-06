@@ -131,6 +131,7 @@ export interface SearchIteration {
 
 export interface AgentSearchResult {
   originalProduct: IdentifiedProduct;
+  originalProductRisk?: import('../services/outcome-feasibility-scorer').OutcomeFeasibilityScore;
   alternatives: ScoredAlternative[];
   searchIterations: SearchIteration[];
   totalCandidatesEvaluated: number;

@@ -119,6 +119,10 @@ api.route('/api/verifier', verifierRoutes);
 import finderRoutes from './routes/finder-routes';
 api.route('/api/finder', finderRoutes);
 
+// Portfolio Risk Audit Routes (Revenue stability analysis)
+import portfolioRoutes from './routes/portfolio-routes';
+api.route('/api/portfolio', portfolioRoutes);
+
 // Context-Aware Agent Routes (AI chat with toggle-aware context)
 import agentRoutes from './routes/agent-routes';
 api.route('/api/agent', agentRoutes);

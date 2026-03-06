@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
       sessionId: finderSession.id,
       status: 'ready',
       originalProduct,
+      originalProductRisk: searchResponse?.originalProductRisk || null,
       alternatives: alternatives,
       alternativesCount: alternatives.length,
       agentReasoning: searchResponse?.agentReasoning || '',

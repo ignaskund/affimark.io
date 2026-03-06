@@ -30,6 +30,9 @@ interface UseFinderReturn {
   // Product identification
   needsProductName: boolean;
   pendingUrl: string;
+  // Original product risk (from search-v2)
+  originalProductRisk: any | null;
+  originalSearchProduct: any | null;
 
   // User context
   productPriorities: Priority[];
@@ -68,6 +71,8 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
   const [lastSearchInput, setLastSearchInput] = useState('');
   const [needsProductName, setNeedsProductName] = useState(false);
   const [pendingUrl, setPendingUrl] = useState('');
+  const [originalProductRisk, setOriginalProductRisk] = useState<any | null>(null);
+  const [originalSearchProduct, setOriginalSearchProduct] = useState<any | null>(null);
 
   // User context
   const [productPriorities, setProductPriorities] = useState<Priority[]>([]);
@@ -207,6 +212,8 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
       const alts = data.alternatives || [];
       setAlternatives(alts);
       setCurrentIndex(0);
+      setOriginalProductRisk(data.originalProductRisk || null);
+      setOriginalSearchProduct(data.originalProduct || null);
 
       // Inject initial assistant message
       const count = data.alternativesCount || alts.length;
@@ -438,6 +445,8 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
     setCurrentIndex(0);
     setChatMessages([]);
     setError(null);
+    setOriginalProductRisk(null);
+    setOriginalSearchProduct(null);
   }, []);
 
   // Clear error
@@ -459,6 +468,8 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
     lastSearchInput,
     needsProductName,
     pendingUrl,
+    originalProductRisk,
+    originalSearchProduct,
     productPriorities,
     brandPriorities,
     activeContext,

@@ -1,16 +1,5 @@
 import Link from 'next/link';
-import {
-  Sparkles,
-  Shield,
-  TrendingUp,
-  FileText,
-  Link2,
-  Zap,
-  CheckCircle,
-  ArrowRight,
-  Coffee,
-} from 'lucide-react';
-
+import { ArrowRight, CheckCircle, ShieldCheck, Coffee } from 'lucide-react';
 import { auth } from '@/lib/auth';
 import UserMenu from '@/components/user/UserMenu';
 
@@ -20,231 +9,315 @@ export default async function Home() {
   const session = await auth();
   const user = session?.user;
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center">
-                  <Coffee className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-bold text-xl text-foreground">AffiMark</span>
-              </Link>
-              <div className="hidden md:flex items-center gap-6">
-                <Link href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Features
-                </Link>
-                <Link href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
-                  Pricing
-                </Link>
-              </div>
-            </div>
+  const ctaHref = user ? '/dashboard/portfolio-audit' : '/sign-up';
 
-            <div className="flex items-center gap-4">
-              {user ? (
-                <>
-                  <Link href="/dashboard" className="btn-primary text-sm py-2 px-4">
-                    Go to App
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                  <UserMenu />
-                </>
-              ) : (
-                <>
-                  <Link href="/sign-in" className="btn-ghost text-sm">
-                    Sign In
-                  </Link>
-                  <Link href="/sign-up" className="btn-primary text-sm py-2 px-4">
-                    Get Started
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </>
-              )}
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center">
+              <Coffee className="w-4 h-4 text-white" />
             </div>
+            <span className="font-semibold text-white tracking-tight">AffiMark</span>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <Link
+                  href="/dashboard/portfolio-audit"
+                  className="text-sm px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors flex items-center gap-1.5"
+                >
+                  Run Portfolio Audit
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <UserMenu />
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/sign-in"
+                  className="text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="text-sm px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                >
+                  Get started free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        {/* Background effects - Chocolate Truffle warm tones */}
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-700/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-600/20 rounded-full blur-3xl" />
-        </div>
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <section className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
+        <p className="text-xs font-mono tracking-[0.2em] text-emerald-500 uppercase mb-6">
+          Affiliate Revenue Intelligence
+        </p>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-700/10 border border-amber-700/30 mb-8">
-              <Sparkles className="w-4 h-4 text-orange-400" />
-              <span className="text-sm text-orange-300">Revenue protection for affiliate creators</span>
-            </div>
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
+          Optimize for Revenue<br />
+          <span className="text-emerald-400">That Stays.</span>
+        </h1>
 
-            <h1 className="text-5xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-              Stop Leaving
-              <br />
-              <span className="gradient-text">Money on the Table</span>
-            </h1>
+        <p className="text-lg text-gray-400 max-w-xl mx-auto mb-10 leading-relaxed">
+          Most affiliate tools help you scale traffic. AffiMark helps you protect margin —
+          by auditing every product in your portfolio for fragile revenue signals.
+        </p>
 
-            <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-              Unified earnings dashboard. Smart link optimization. Tax-ready exports.
-              <br />
-              Everything EU-based creators need to protect and grow affiliate revenue.
-            </p>
+        <Link
+          href={ctaHref}
+          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base transition-all shadow-lg shadow-emerald-900/40"
+        >
+          Run Portfolio Risk Audit
+          <ArrowRight className="w-5 h-5" />
+        </Link>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Link href={user ? '/dashboard' : '/sign-up'} className="btn-primary text-lg py-4 px-8">
-                <Sparkles className="w-5 h-5" />
-                Start Free
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link href="#features" className="btn-secondary text-lg py-4 px-8">
-                See How It Works
-              </Link>
-            </div>
-
-            {/* Trust indicators */}
-            <div className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                2-minute setup
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                EU-based & GDPR compliant
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                No credit card required
-              </span>
-            </div>
-          </div>
+        <div className="flex flex-wrap justify-center gap-6 mt-8 text-sm text-gray-500">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            Works from your Linktree
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            No manual data entry
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle className="w-4 h-4 text-emerald-500" />
+            EU-based &amp; GDPR compliant
+          </span>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-card/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
-              Not Another Dashboard. Revenue Protection.
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              AffiMark actively protects and optimizes your affiliate revenue
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="glass-card p-8 group hover:border-amber-700/40 transition-colors">
-              <div className="w-14 h-14 rounded-xl bg-amber-700/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <TrendingUp className="w-7 h-7 text-amber-500" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Unified Dashboard</h3>
-              <p className="text-muted-foreground">
-                One view for all affiliate income. Amazon, Awin, LTK, and more — normalized to your home currency.
-              </p>
-            </div>
-
-            {/* Feature 2 - Hero */}
-            <div className="glass-card p-8 group border-orange-600/40 bg-gradient-to-br from-amber-800/10 to-orange-700/10">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-14 h-14 rounded-xl bg-orange-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Sparkles className="w-7 h-7 text-orange-400" />
-                </div>
-                <span className="badge badge-warning text-xs">★ HERO</span>
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Smart Link Optimizer</h3>
-              <p className="text-muted-foreground">
-                Stop using 3% links when 12% exist. We find better-paying programs for the same products.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="glass-card p-8 group hover:border-emerald-500/40 transition-colors">
-              <div className="w-14 h-14 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Shield className="w-7 h-7 text-emerald-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Link Health Monitor</h3>
-              <p className="text-muted-foreground">
-                Catch broken links and stockouts before they cost you. Know exactly how much revenue we protected.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="glass-card p-8 group hover:border-amber-600/40 transition-colors">
-              <div className="w-14 h-14 rounded-xl bg-amber-600/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Link2 className="w-7 h-7 text-amber-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">SmartWrapper Links</h3>
-              <p className="text-muted-foreground">
-                Platform-independent links with analytics, auto-fallback, and in-app browser detection.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="glass-card p-8 group hover:border-blue-500/40 transition-colors">
-              <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <FileText className="w-7 h-7 text-blue-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Tax-Ready Export</h3>
-              <p className="text-muted-foreground">
-                One-click exports for German freelancers, Dutch ZZPs, UK sole traders, and more EU tax personas.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="glass-card p-8 group hover:border-orange-500/40 transition-colors">
-              <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Zap className="w-7 h-7 text-orange-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-3">Zero-Effort Onboarding</h3>
-              <p className="text-muted-foreground">
-                Paste your Linktree URL, we do the rest. Auto-detect storefronts and import in 2 minutes.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-6">
-            Ready to Protect Your Revenue?
-          </h2>
-          <p className="text-lg text-muted-foreground mb-10">
-            Join creators who are earning more by working smarter, not harder.
+      {/* ── THE HIDDEN PROBLEM ───────────────────────────────────────────── */}
+      <section className="border-y border-white/5 bg-white/[0.02]">
+        <div className="max-w-6xl mx-auto px-6 py-20">
+          <p className="text-xs font-mono tracking-[0.2em] text-gray-500 uppercase mb-4">
+            The Hidden Problem
           </p>
-          <Link href={user ? '/dashboard' : '/sign-up'} className="btn-primary text-lg py-4 px-10">
-            <Sparkles className="w-5 h-5" />
-            Get Started Free
+          <h2 className="text-2xl sm:text-3xl font-bold mb-12 max-w-lg">
+            You track what you earn. You don&apos;t track what you&apos;re at risk of losing.
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 space-y-4">
+              <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                What affiliates measure
+              </p>
+              {[
+                'Total clicks and impressions',
+                'Monthly commission earned',
+                'Top products by revenue',
+                'Platform comparison charts',
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-3 text-sm text-gray-300">
+                  <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl border border-red-500/20 bg-red-500/[0.03] p-6 space-y-4">
+              <p className="text-sm font-semibold text-red-400 uppercase tracking-wider">
+                What they ignore (until it hurts)
+              </p>
+              {[
+                'Merchant reliability &amp; refund rates',
+                'Cookie duration erosion over time',
+                'Programs with approval requirements',
+                'Category-level demand fragility',
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-3 text-sm text-gray-300">
+                  <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+                  <span dangerouslySetInnerHTML={{ __html: item }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── RISK-ADJUSTED REVENUE ────────────────────────────────────────── */}
+      <section className="max-w-6xl mx-auto px-6 py-20">
+        <p className="text-xs font-mono tracking-[0.2em] text-gray-500 uppercase mb-4">
+          Risk-Adjusted Revenue
+        </p>
+        <h2 className="text-2xl sm:text-3xl font-bold mb-4">
+          Revenue you can predict is worth more than revenue you can&apos;t.
+        </h2>
+        <p className="text-gray-400 mb-10 max-w-lg">
+          We score every product across four dimensions that determine whether your
+          affiliate income will hold — or quietly erode.
+        </p>
+
+        {/* Formula */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 mb-10 font-mono text-sm text-gray-300">
+          <p className="text-xs text-gray-500 mb-3 font-sans uppercase tracking-wider">
+            Revenue Stability Score
+          </p>
+          <p className="text-base leading-loose">
+            <span className="text-emerald-400">MerchantRisk</span>
+            <span className="text-gray-500"> × 0.30 + </span>
+            <span className="text-amber-400">ProgramFriction</span>
+            <span className="text-gray-500"> × 0.25 +</span>
+            <br />
+            <span className="text-blue-400">DemandEvidence</span>
+            <span className="text-gray-500"> × 0.25 + </span>
+            <span className="text-purple-400">RefundRisk</span>
+            <span className="text-gray-500"> × 0.20</span>
+          </p>
+        </div>
+
+        {/* Metrics grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              color: 'emerald',
+              label: 'Merchant Stability',
+              desc: 'Trustpilot score, shipping reliability, return policy. Is this merchant likely to pay and deliver?',
+              border: 'border-emerald-500/20 bg-emerald-500/[0.04]',
+              dot: 'bg-emerald-400',
+            },
+            {
+              color: 'amber',
+              label: 'Program Friction',
+              desc: 'Cookie duration, commission rate, approval difficulty. Is this program easy to stay in?',
+              border: 'border-amber-500/20 bg-amber-500/[0.04]',
+              dot: 'bg-amber-400',
+            },
+            {
+              color: 'blue',
+              label: 'Demand Evidence',
+              desc: 'Review count, rating volume, price positioning. Is there real buying intent behind this product?',
+              border: 'border-blue-500/20 bg-blue-500/[0.04]',
+              dot: 'bg-blue-400',
+            },
+            {
+              color: 'purple',
+              label: 'Refund Risk',
+              desc: 'Category return rates, satisfaction signals. Will chargebacks eat into your net commission?',
+              border: 'border-purple-500/20 bg-purple-500/[0.04]',
+              dot: 'bg-purple-400',
+            },
+          ].map(({ label, desc, border, dot }) => (
+            <div key={label} className={`rounded-xl border p-5 ${border}`}>
+              <div className={`w-2 h-2 rounded-full ${dot} mb-3`} />
+              <p className="text-sm font-semibold text-white mb-2">{label}</p>
+              <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── REMOVE FRAGILE REVENUE ───────────────────────────────────────── */}
+      <section className="border-y border-white/5 bg-white/[0.02]">
+        <div className="max-w-6xl mx-auto px-6 py-20">
+          <p className="text-xs font-mono tracking-[0.2em] text-gray-500 uppercase mb-4">
+            Remove Fragile Revenue
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-10">
+            Replace the products that look like income<br />
+            but feel like risk.
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <p className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-4">
+                What you eliminate
+              </p>
+              {[
+                'Products with volatile merchant ratings',
+                'Links on programs with short cookie windows',
+                'High-return categories with low margin',
+                'Programs that cancel affiliates without notice',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3 text-sm text-gray-300">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4">
+              <p className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-4">
+                What you gain
+              </p>
+              {[
+                'A predictable monthly commission baseline',
+                'Confidence that traffic converts to payment',
+                'Clear data for brand negotiation pitches',
+                'Fewer surprises at the end of the month',
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3 text-sm text-gray-300">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── DIFFERENTIATION ─────────────────────────────────────────────── */}
+      <section className="max-w-6xl mx-auto px-6 py-20 text-center">
+        <div className="inline-flex items-center gap-4 px-6 py-5 rounded-2xl border border-white/10 bg-white/[0.03] max-w-xl mx-auto">
+          <ShieldCheck className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+          <p className="text-base font-medium text-gray-200 text-left">
+            Most affiliate tools help you scale traffic.{' '}
+            <span className="text-white font-semibold">
+              AffiMark helps you protect margin.
+            </span>
+          </p>
+        </div>
+      </section>
+
+      {/* ── PSYCHOLOGICAL CLOSE ─────────────────────────────────────────── */}
+      <section className="border-t border-white/5 bg-white/[0.02]">
+        <div className="max-w-6xl mx-auto px-6 py-20 text-center">
+          <p className="text-xs font-mono tracking-[0.2em] text-gray-500 uppercase mb-6">
+            Act on what you already have
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4 max-w-2xl mx-auto leading-tight">
+            Your current portfolio is worth more<br />
+            <span className="text-emerald-400">once you know which parts are fragile.</span>
+          </h2>
+          <p className="text-gray-400 mb-10 max-w-lg mx-auto">
+            You don&apos;t need more links. You need to know which existing links are eroding
+            your revenue — and what to replace them with.
+          </p>
+
+          <Link
+            href={ctaHref}
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base transition-all shadow-lg shadow-emerald-900/40"
+          >
+            Audit Your Revenue Stability
             <ArrowRight className="w-5 h-5" />
           </Link>
+
+          <p className="text-xs text-gray-600 mt-4">
+            Free to start · No credit card required · EU-based &amp; GDPR compliant
+          </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-700 to-orange-600 flex items-center justify-center">
-                <Coffee className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-foreground">AffiMark</span>
+      <footer className="border-t border-white/5 py-8">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-600">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded bg-emerald-600 flex items-center justify-center">
+              <Coffee className="w-3 h-3 text-white" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              © 2026 AffiMark. Revenue protection for affiliate creators.
-            </p>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
-              <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
-              <Link href="#" className="hover:text-foreground transition-colors">Contact</Link>
-            </div>
+            <span className="text-gray-500">AffiMark</span>
+          </div>
+          <p>© 2026 AffiMark. Revenue intelligence for affiliate creators.</p>
+          <div className="flex items-center gap-4">
+            <Link href="#" className="hover:text-gray-400 transition-colors">Privacy</Link>
+            <Link href="#" className="hover:text-gray-400 transition-colors">Terms</Link>
           </div>
         </div>
       </footer>

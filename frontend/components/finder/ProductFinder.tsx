@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
@@ -22,10 +22,12 @@ import { useFinder } from '@/hooks/useFinder';
 import CardStack from './CardStack';
 import ChatPanel from './ChatPanel';
 import ProductScanAnimation from './ProductScanAnimation';
+import ProductRiskCard from './ProductRiskCard';
 import type { AlternativeProduct, SavedProduct } from '@/types/finder';
 
 interface ProductFinderProps {
   userId: string;
+  prefillUrl?: string;
 }
 
 type FinderViewState = 'initial' | 'searching' | 'results';
@@ -46,12 +48,23 @@ function detectInputType(value: string): 'url' | 'category' {
   }
 }
 
-export default function ProductFinder({ userId }: ProductFinderProps) {
+export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps) {
   const router = useRouter();
   const finder = useFinder({ userId });
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(prefillUrl || '');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [productNameInput, setProductNameInput] = useState('');
+
+  // Auto-trigger search when prefillUrl is provided (e.g. from portfolio audit "Find Alternative")
+  useEffect(() => {
+    if (!prefillUrl) return;
+    // Small delay to let useFinder load user context first
+    const timer = setTimeout(() => {
+      finder.search(prefillUrl, 'url');
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const viewState: FinderViewState = useMemo(() => {
     if (finder.isSearching) return 'searching';
@@ -338,7 +351,16 @@ export default function ProductFinder({ userId }: ProductFinderProps) {
                 <ProductScanAnimation isActive={true} />
               ) : (
                 <div className="h-full flex flex-col">
-                  <div className="flex-1 overflow-y-auto p-6">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {/* Original product risk card */}
+                    {finder.originalProductRisk && finder.originalSearchProduct && (
+                      <ProductRiskCard
+                        productTitle={finder.originalSearchProduct.title}
+                        productPrice={finder.originalSearchProduct.price}
+                        productCurrency={finder.originalSearchProduct.currency}
+                        risk={finder.originalProductRisk}
+                      />
+                    )}
                     <CardStack
                       products={finder.alternatives}
                       currentIndex={finder.currentIndex}

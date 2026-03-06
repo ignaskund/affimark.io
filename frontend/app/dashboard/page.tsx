@@ -6,6 +6,7 @@ import QuickActionsGrid from '@/components/dashboard/QuickActionsGrid';
 import UpliftAlert from '@/components/dashboard/UpliftAlert';
 import InsightsPanel from '@/components/dashboard/InsightsPanel';
 import StorefrontBreakdownCard from '@/components/dashboard/StorefrontBreakdownCard';
+import PortfolioHealthCard from '@/components/dashboard/PortfolioHealthCard';
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, ArrowRight, Clock, Sparkles } from 'lucide-react';
 
@@ -291,11 +292,13 @@ export default async function DashboardPage() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
         {/* Left Column - Storefronts */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
           <StorefrontBreakdownCard
             storefronts={formattedStorefronts}
             totalProducts={totalProducts}
           />
+          {/* Portfolio Health Summary */}
+          <PortfolioHealthCard />
         </div>
 
         {/* Right Column - Insights */}
