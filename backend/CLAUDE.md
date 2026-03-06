@@ -2,15 +2,16 @@
 
 Backend: Cloudflare Workers API (Hono + TypeScript), Supabase.
 
-**Positioning:** Revenue protection + operational sanity. Not "another analytics dashboard."
+**Positioning:** Affiliate revenue risk intelligence. "Optimize for Revenue That Stays." Not "another analytics dashboard."
 
-**PRIMARY FOCUS: Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→search data pipeline.
+**PRIMARY FOCUS: Portfolio Risk Audit + Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→audit→search data pipeline and `AGENT_INSTRUCTIONS.md` for the current MVP task breakdown.
 
 ---
 
 ## Core Responsibilities
 
-1. **Alternative Product Search** ★ — Find the best alternative product for each item using onboarding context
+1. **Portfolio Risk Audit** ★ HERO — Score every product for revenue risk (merchantRisk, refundRisk, demandEvidence, programFriction), compute verdicts (KEEP/REVIEW/REPLACE), portfolio aggregates. See `AGENT_INSTRUCTIONS.md` Task 1.
+2. **Alternative Product Search** ★ — Find the best alternative product for each risky item using onboarding context
 2. **SmartWrapper Redirects** - Fast (<50ms), in-app browser detection, fallback handling
 3. **Platform Integrations** - OAuth + CSV parsing for multi-storefront support
 4. **Data Normalization** - Handle "shipped" vs "ordered", multi-currency conversion

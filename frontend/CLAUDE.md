@@ -2,17 +2,19 @@
 
 Frontend: Next.js 15 (App Router) + TypeScript + Tailwind + Supabase + Stripe.
 
-**Positioning:** Revenue protection + operational sanity + tax readiness. NOT "another analytics dashboard."
+**Deployment:** Vinext (Cloudflare's Next.js reimplementation on Vite) → Cloudflare Workers. Run `npm run deploy` for one-command build + deploy. `npm run dev` still uses Next.js for local development.
 
-**PRIMARY FOCUS: Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→search pipeline.
+**Positioning:** Affiliate revenue risk intelligence. "Optimize for Revenue That Stays." NOT "another analytics dashboard."
+
+**PRIMARY FOCUS: Portfolio Risk Audit + Alternative Search Quality** — see `AGENTS.md` at repo root for the full onboarding→audit→search pipeline and `AGENT_INSTRUCTIONS.md` for the current MVP task breakdown.
 
 ---
 
 ## Core User Experience
 
-**Primary User Flow (Onboarding → Search):**
+**Primary User Flow (Onboarding → Audit → Search):**
 ```
-Sign Up → Magic Onboarding (paste Linktree URL) → Priority Ranking → Dashboard → Search Alternatives
+Sign Up → Magic Onboarding (paste Linktree URL) → Priority Ranking → Dashboard → Portfolio Risk Audit → Find Better Alternatives
 ```
 
 **Onboarding captures the data that powers search quality:**
