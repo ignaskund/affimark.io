@@ -135,6 +135,10 @@ function buildQueryArray(params: DatafeedrSearchParams): string[] {
     queryFilters.push(`currency = ${params.currency}`);
   }
 
+  // Note: Datafeedr's `availability` field is not populated by most merchants.
+  // Stock freshness is handled post-search by preferring recently-updated products
+  // in the scoring layer (time_updated checked after results are returned).
+
   return queryFilters;
 }
 
@@ -504,7 +508,9 @@ export function convertToAlternativeProduct(product: DatafeedrProduct): any {
     description: product.description,
     affiliateNetwork: product.network,
     merchant: product.merchant,
-    inStock: product.availability === 'in-stock' || product.availability === 'in stock',
+    inStock: product.availability === 'out of stock' || product.availability === 'out-of-stock'
+      ? false
+      : true,  // Treat empty/unknown availability as likely in-stock (most merchants don't set this field)
     lastUpdated,
   };
 }
