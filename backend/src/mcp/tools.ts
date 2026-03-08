@@ -144,11 +144,30 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
         .filter(s => s.includes('-') && s.length > 15 && !/^[A-Z0-9-]{6,15}$/.test(s))
         .sort((a, b) => b.length - a.length)[0];
       if (slugCandidate) {
-        // Convert slug to title: "song-of-style-naara-cable-crew-pullover-in-brown" → proper title
         const words = slugCandidate.split('-').filter(w => w.length > 1 && !/^\d+$/.test(w));
         const title = words.join(' ');
         if (title.length > 10 && words.length >= 3) {
           console.log(`[MCP identify_product] Generic slug extracted: "${title}" from ${parsed.hostname}`);
+          // Use AI to parse brand vs product from the slug (e.g. "song of style" is the brand, "naara cable crew pullover" is the product)
+          if (env?.OPENAI_API_KEY) {
+            try {
+              const { aiComplete, extractJson } = await import('../services/ai-client');
+              const aiResult = await aiComplete({
+                prompt: `This product slug was extracted from ${parsed.hostname}: "${title}"
+Separate the brand name from the product description.
+Return ONLY JSON: {"brand": "brand name or null", "product": "product description without brand", "category": "Fashion|Beauty & Health|Electronics|Home & Garden|Sports & Outdoors"}`,
+                maxTokens: 80, apiKey: env.OPENAI_API_KEY,
+              });
+              const parsed2 = extractJson(aiResult);
+              if (parsed2?.product) {
+                console.log(`[MCP identify_product] AI slug parse: brand="${parsed2.brand}", product="${parsed2.product}"`);
+                return buildIdentifiedProduct(
+                  parsed2.product, parsed2.brand || null,
+                  parsed2.category || null, null, 'USD', 'url_slug'
+                );
+              }
+            } catch (e) { /* fall through to basic parsing */ }
+          }
           return buildIdentifiedProduct(title, null, null, null, 'USD', 'url_slug');
         }
       }
@@ -521,8 +540,17 @@ export async function scoreCandidate(
 
   const priorityWeightedScore = Math.round(productPriorityScore * 0.65 + brandPriorityScore * 0.35);
 
-  const baseScore = semanticScore * 0.35 + priorityWeightedScore * 0.35 + feasibility.overall * 0.30;
-  const stockBonus = candidate.inStock === true ? 10 : candidate.inStock === false ? -10 : 0;
+  // Semantic similarity is the strongest signal — a product with 90% semantic match
+  // that has unknown brand data (50 priority score) is still a good result.
+  // Weight semantic higher when priority data is sparse (low-confidence enrichment).
+  const hasRichEnrichment = (signals.commissionRate !== undefined && signals.commissionRate > 0)
+    || (signals.rating !== undefined && signals.rating > 0);
+  const semWeight = hasRichEnrichment ? 0.30 : 0.40;
+  const priWeight = hasRichEnrichment ? 0.40 : 0.30;
+  const feaWeight = 0.30;
+
+  const baseScore = semanticScore * semWeight + priorityWeightedScore * priWeight + feasibility.overall * feaWeight;
+  const stockBonus = candidate.inStock === true ? 8 : candidate.inStock === false ? -5 : 0;
   const combinedScore = Math.min(100, Math.max(0, Math.round(baseScore + stockBonus)));
 
   const priceDiff = originalProduct.price && candidate.price

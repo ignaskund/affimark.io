@@ -387,7 +387,19 @@ async function generateSearchStrategies(
     strategies.push({ name: 'product_type', query });
   }
 
-  // Strategy 2: Product type + price range anchored to original
+  // Strategy 2: Broader single-word category search to catch in-stock products
+  // "square sunglasses" might be too narrow — also try just "sunglasses"
+  if (productTypeQueries.length > 0) {
+    const words = productTypeQueries[0].split(/\s+/);
+    if (words.length >= 2) {
+      const lastWord = words[words.length - 1];
+      if (lastWord.length >= 5) {
+        strategies.push({ name: 'broad_type', query: lastWord });
+      }
+    }
+  }
+
+  // Strategy 3: Product type + price range anchored to original
   if (product.price && productTypeQueries.length > 0) {
     strategies.push({
       name: 'price_anchored',
@@ -397,7 +409,7 @@ async function generateSearchStrategies(
     });
   }
 
-  // Strategy 3: Search within creator's preferred networks
+  // Strategy 4: Search within creator's preferred networks
   const { resolveSourceNames } = await import('../services/datafeedr-client');
   const sourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
   if (sourceNames.length > 0 && productTypeQueries.length > 0) {
@@ -408,7 +420,7 @@ async function generateSearchStrategies(
     });
   }
 
-  // Strategy 4: Broader category search if product type queries are narrow
+  // Strategy 5: Broader category search if product type queries are narrow
   if (product.subcategory && product.subcategory !== productTypeQueries[0]) {
     const brandTokens = extractBrandTokens(product.brand);
     const cleaned = stripBrandFromQuery(product.subcategory, brandTokens);

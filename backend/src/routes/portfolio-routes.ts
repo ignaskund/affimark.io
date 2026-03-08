@@ -286,4 +286,87 @@ app.post('/audit', async (c) => {
   }
 });
 
+/**
+ * POST /api/portfolio/add-product
+ * Adds a product URL to the user's portfolio for risk analysis.
+ * Used when the onboarding scanner only captured storefront-level links.
+ */
+app.post('/add-product', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId, productUrl, title } = body;
+
+    if (!userId) return c.json({ error: 'userId is required' }, 401);
+    if (!productUrl) return c.json({ error: 'productUrl is required' }, 400);
+
+    const supabaseUrl = (c.env as any).SUPABASE_URL;
+    const supabaseKey = (c.env as any).SUPABASE_SERVICE_KEY;
+    const headers = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Identify the product to get title, brand, category
+    let productTitle = title || '';
+    let brand = null;
+    let category = null;
+
+    try {
+      const identified = await identifyProduct(productUrl, c.env);
+      if (identified.confidence >= 20) {
+        productTitle = productTitle || identified.title;
+        brand = identified.brand;
+        category = identified.category;
+      }
+    } catch (e) {
+      console.warn('[Portfolio] Product identification failed:', e);
+    }
+
+    // Find the user's first storefront to link to
+    const sfRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefronts?user_id=eq.${userId}&limit=1`,
+      { headers }
+    );
+    const storefronts = await sfRes.json();
+    const storefrontId = Array.isArray(storefronts) && storefronts.length > 0
+      ? storefronts[0].id : null;
+
+    // Insert into user_storefront_products
+    const insertRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefront_products`,
+      {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: userId,
+          storefront_id: storefrontId,
+          product_url: productUrl,
+          title: productTitle || 'Unknown Product',
+          brand,
+          category,
+          platform: 'manual',
+        }),
+      }
+    );
+
+    if (!insertRes.ok) {
+      const err = await insertRes.text();
+      console.error('[Portfolio] Insert failed:', err);
+      return c.json({ error: 'Failed to add product' }, 500);
+    }
+
+    const inserted = await insertRes.json();
+    console.log(`[Portfolio] Added product: "${productTitle}" for user ${userId}`);
+
+    return c.json({
+      success: true,
+      product: Array.isArray(inserted) ? inserted[0] : inserted,
+    });
+  } catch (error: any) {
+    console.error('[Portfolio Add] Error:', error);
+    return c.json({ error: 'Failed to add product', message: error.message }, 500);
+  }
+});
+
 export default app;
