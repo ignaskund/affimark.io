@@ -344,12 +344,38 @@ function isGarbageTitle(title: string): boolean {
 }
 
 function inferBrand(title: string): string | null {
-  const words = title.split(/\s+/).slice(0, 2);
+  const words = title.split(/\s+/);
   if (words.length === 0) return null;
-  const candidate = words[0];
-  if (candidate.length < 3 || /^\d/.test(candidate)) return null;
-  const generic = new Set(['the', 'a', 'set', 'pack', 'new', 'best', 'top', 'women', 'men']);
-  if (generic.has(candidate.toLowerCase())) return null;
+
+  const generic = new Set([
+    'the', 'a', 'set', 'pack', 'new', 'best', 'top', 'women', 'men', 'for',
+    'with', 'and', 'in', 'of', 'by', 'dry', 'wet', 'mini', 'pro', 'ultra',
+    'wireless', 'portable', 'organic', 'natural', 'premium', 'classic',
+    'vintage', 'retro', 'modern', 'smart', 'digital', 'professional',
+  ]);
+  const productWords = new Set([
+    'sunglasses', 'spray', 'cream', 'serum', 'lotion', 'shampoo', 'oil',
+    'pullover', 'sweater', 'dress', 'shirt', 'jacket', 'shoes', 'boots',
+    'headphones', 'earbuds', 'speaker', 'charger', 'lamp', 'candle',
+    'moisturizer', 'foundation', 'mascara', 'lipstick', 'blush', 'concealer',
+    'hair', 'texture', 'volume', 'matte', 'glossy', 'lightweight',
+  ]);
+
+  // Collect brand words: take leading words that look like proper nouns (capitalized)
+  // and stop at the first generic/product word
+  const brandParts: string[] = [];
+  for (let i = 0; i < Math.min(words.length, 4); i++) {
+    const word = words[i];
+    const lower = word.toLowerCase();
+    if (generic.has(lower) || productWords.has(lower)) break;
+    if (/^\d/.test(word)) break;
+    if (i > 0 && word[0] === word[0].toLowerCase() && word.length < 4) break;
+    brandParts.push(word);
+  }
+
+  if (brandParts.length === 0) return null;
+  const candidate = brandParts.join(' ');
+  if (candidate.length < 2 || candidate.length > 40) return null;
   return candidate;
 }
 

@@ -188,7 +188,15 @@ export async function runAlternativeSearchAgent(
       )
     );
 
-    const passing = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
+    // Hard category gate: reject products from completely wrong categories
+    // A comforter must never appear in a hair spray search. A Barbie doll must never appear for a pullover.
+    const categoryPassed = scored.filter(s => {
+      if (product.category === 'General' || !product.category) return true;
+      if (!s.category || s.category === 'General') return true;
+      return categoriesOverlap(s.category, product.category);
+    });
+
+    const passing = categoryPassed.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
     allScoredCandidates.push(...passing);
 
     const avgSem = semanticScores.size > 0
@@ -271,28 +279,33 @@ async function generateProductTypeQueries(product: IdentifiedProduct, env: any):
   ))].filter(q => q.split(/\s+/).length >= 2);
 
   // AI distillation: produce a concise 2-3 word product-type query for Datafeedr
-  // Datafeedr searches work better with short, specific terms (e.g. "cable knit pullover")
-  if (env?.OPENAI_API_KEY && unique.length > 0) {
+  const apiKey = env?.OPENAI_API_KEY;
+  if (apiKey && unique.length > 0) {
     try {
       const { aiComplete } = await import('../services/ai-client');
       const context = unique.slice(0, 3).join(' | ');
+      console.log(`[Agent] AI distillation input: "${context}"`);
       const distilled = await aiComplete({
         prompt: `Given these product search queries: "${context}"
-Distill to the BEST 2-3 word product TYPE for affiliate search. Never include brand names.
-Examples: "cable knit pullover", "polarized sunglasses", "dry texture spray", "wireless earbuds"
-Return ONLY the 2-3 word phrase, nothing else.`,
+Distill to the BEST 2-4 word product TYPE for affiliate product search. Never include brand names.
+Examples: "cable knit pullover", "polarized sunglasses", "dry texture hair spray", "wireless earbuds", "retro square sunglasses"
+Return ONLY the 2-4 word phrase, nothing else.`,
         maxTokens: 20,
-        apiKey: env.OPENAI_API_KEY,
+        apiKey,
       });
-      const phrase = distilled.trim().replace(/^["']|["']$/g, '').toLowerCase();
-      if (phrase && phrase.split(/\s+/).length >= 2 && phrase.split(/\s+/).length <= 4) {
-        // Prepend as the primary query — most concise for Datafeedr
-        console.log(`[Agent] AI distilled query: "${phrase}"`);
-        return [phrase, ...unique.filter(q => q !== phrase)];
+      const phrase = distilled.trim().replace(/^["']|["']$/g, '').replace(/\./g, '').toLowerCase();
+      console.log(`[Agent] AI distillation raw output: "${distilled.trim()}" → cleaned: "${phrase}"`);
+      if (phrase && phrase.split(/\s+/).length >= 2 && phrase.split(/\s+/).length <= 5) {
+        console.log(`[Agent] AI distilled query accepted: "${phrase}"`);
+        return [phrase, ...unique.filter(q => q.toLowerCase() !== phrase)];
+      } else {
+        console.warn(`[Agent] AI distilled query rejected (word count): "${phrase}"`);
       }
-    } catch (e) {
-      // Non-fatal: fall through to rule-based queries
+    } catch (e: any) {
+      console.warn(`[Agent] AI distillation failed: ${e?.message || e}`);
     }
+  } else if (!apiKey) {
+    console.warn('[Agent] No OPENAI_API_KEY — skipping AI distillation');
   }
 
   return unique.length > 0 ? unique : [product.title.slice(0, 50)];
@@ -318,9 +331,10 @@ function buildBrandExclusions(product: IdentifiedProduct): string[] {
   const exclusions: string[] = [];
   if (product.brand) {
     exclusions.push(product.brand);
-    // Add individual brand words for fuzzy matching (e.g. "Kristin" and "Ess")
     const parts = product.brand.split(/\s+/).filter(w => w.length > 2);
-    if (parts.length > 1) exclusions.push(parts[0]);
+    for (const part of parts) {
+      if (!exclusions.includes(part)) exclusions.push(part);
+    }
   }
   return exclusions;
 }
@@ -480,6 +494,37 @@ function enforceDiversity(candidates: ScoredAlternative[], targetSize: number): 
   }
 
   return result;
+}
+
+/**
+ * Hard category gate — checks if two categories could reasonably overlap.
+ * "Beauty > Hair Care" and "Beauty & Health" overlap. "Home > Bedding" and "Beauty" do not.
+ */
+function categoriesOverlap(candidateCategory: string, originalCategory: string): boolean {
+  const a = candidateCategory.toLowerCase();
+  const b = originalCategory.toLowerCase();
+  if (a === b) return true;
+
+  const groups: string[][] = [
+    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance'],
+    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'watches', 'bags', 'sunglasses'],
+    ['electronics', 'technology', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home'],
+    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor', 'appliances'],
+    ['sports', 'fitness', 'outdoors', 'camping', 'exercise', 'yoga'],
+    ['toys', 'games', 'kids', 'baby', 'dolls'],
+    ['food', 'beverage', 'grocery', 'supplements', 'nutrition'],
+    ['books', 'media', 'music', 'movies'],
+    ['automotive', 'car', 'vehicle'],
+    ['pets', 'dog', 'cat', 'animal'],
+  ];
+
+  for (const group of groups) {
+    const aInGroup = group.some(kw => a.includes(kw));
+    const bInGroup = group.some(kw => b.includes(kw));
+    if (aInGroup && bInGroup) return true;
+  }
+
+  return false;
 }
 
 function buildAgentReasoning(

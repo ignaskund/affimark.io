@@ -585,7 +585,8 @@ app.post('/enrich-products', async (c) => {
       `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=id,title,brand,category&order=created_at.desc&limit=100`,
       { headers }
     );
-    const products: any[] = await productsRes.json();
+    const productsRaw = await productsRes.json();
+    const products: any[] = Array.isArray(productsRaw) ? productsRaw : [];
 
     const toEnrich = products.filter(p => p.title && (!p.category || p.category === 'General'));
     if (toEnrich.length === 0) {
