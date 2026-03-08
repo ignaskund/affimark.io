@@ -212,8 +212,14 @@ export async function runAlternativeSearchAgent(
 
     console.log(`[Agent] Search ${i + 1}: ${candidates.length} raw → ${filtered.length} new → ${semanticPassed.length} semantic → ${qualityPassed.length} quality → ${passing.length} passed (top=${passing.length > 0 ? Math.max(...passing.map(r => r.combinedScore)) : 0})`);
 
-    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 3) {
-      console.log(`[Agent] Sufficient candidates (${allScoredCandidates.length}), stopping`);
+    // Only stop early if we have enough IN-STOCK candidates
+    const inStockCount = allScoredCandidates.filter(c => c.inStock).length;
+    if (inStockCount >= MIN_QUALITY_CANDIDATES * 2) {
+      console.log(`[Agent] Sufficient in-stock candidates (${inStockCount}), stopping`);
+      break;
+    }
+    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 5) {
+      console.log(`[Agent] Max candidates reached (${allScoredCandidates.length}), stopping`);
       break;
     }
   }
@@ -236,14 +242,24 @@ export async function runAlternativeSearchAgent(
       const urls = diverse.map(d => ({ directUrl: (d as any).directUrl, affiliateUrl: d.affiliateUrl }));
 
       if (signals.length > 0) {
+        // Compute price percentiles across final candidates
+        const { computePricePercentiles } = await import('../services/enrichment');
+        computePricePercentiles(signals);
+
+        // Dynamic enrichment: fetch product pages for real ratings/reviews
         await enrichDynamic(signals, urls);
         console.log(`[Agent] Dynamic enrichment complete for ${signals.length} products`);
 
+        // Re-compute all KPIs with full enriched data
         for (let i = 0; i < diverse.length; i++) {
           const s = signals[i];
           if (!s) continue;
           diverse[i].productKpis = computeAllProductKpis(s, profile.productPriorities);
           diverse[i].brandKpis = computeAllBrandKpis(s, profile.brandPriorities);
+          // Update comparisonToOriginal.betterForPriority1 with enriched KPI
+          if (diverse[i].productKpis[0]) {
+            diverse[i].comparisonToOriginal.betterForPriority1 = diverse[i].productKpis[0].score >= 60;
+          }
         }
       }
     } catch (e) {

@@ -166,7 +166,7 @@ Return ONLY JSON: {"brand": "brand name or null", "product": "product descriptio
                   parsed2.category || null, null, 'USD', 'url_slug'
                 );
               }
-            } catch (e) { /* fall through to basic parsing */ }
+            } catch (e: any) { console.warn('[MCP identify_product] AI slug parse failed:', e?.message || e); }
           }
           return buildIdentifiedProduct(title, null, null, null, 'USD', 'url_slug');
         }
