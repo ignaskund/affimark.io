@@ -224,6 +224,33 @@ export async function runAlternativeSearchAgent(
   const deduped = deduplicateByName(allScoredCandidates);
   const diverse = enforceDiversity(deduped, TOP_K);
 
+  // ── STEP 7: Dynamic enrichment for top results ──────────────────────────
+  // Fetch actual product pages to get real ratings and review counts.
+  // This fixes the quality/reviews KPIs which otherwise show "pending enrichment".
+  if (diverse.length > 0) {
+    try {
+      const { enrichDynamic } = await import('../services/enrichment');
+      const { computeAllProductKpis, computeAllBrandKpis } = await import('../services/priority-kpi-specs');
+
+      const signals = diverse.map(d => (d as any)._enrichedSignals).filter(Boolean);
+      const urls = diverse.map(d => ({ directUrl: (d as any).directUrl, affiliateUrl: d.affiliateUrl }));
+
+      if (signals.length > 0) {
+        await enrichDynamic(signals, urls);
+        console.log(`[Agent] Dynamic enrichment complete for ${signals.length} products`);
+
+        for (let i = 0; i < diverse.length; i++) {
+          const s = signals[i];
+          if (!s) continue;
+          diverse[i].productKpis = computeAllProductKpis(s, profile.productPriorities);
+          diverse[i].brandKpis = computeAllBrandKpis(s, profile.brandPriorities);
+        }
+      }
+    } catch (e) {
+      console.warn('[Agent] Dynamic enrichment failed (non-fatal):', e);
+    }
+  }
+
   const agentReasoning = buildAgentReasoning(product, profile, diverse, iterations);
 
   console.log(`[Agent] Done: ${diverse.length} alternatives from ${allCandidateIds.size} evaluated in ${Date.now() - startTime}ms`);

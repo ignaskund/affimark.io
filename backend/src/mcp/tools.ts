@@ -584,13 +584,15 @@ export async function scoreCandidate(
     warnings: feasibility.warnings || [],
     comparisonToOriginal: {
       priceDiff,
-      categoryMatch: candidate.category.toLowerCase().includes(originalProduct.category.toLowerCase()) ||
+      categoryMatch: originalProduct.category === 'General' ||
+        candidate.category.toLowerCase().includes(originalProduct.category.toLowerCase()) ||
         originalProduct.category.toLowerCase().includes(candidate.category.toLowerCase()) ||
-        originalProduct.category === 'General',
+        categoriesInSameGroup(candidate.category, originalProduct.category),
       sameBrand: !!originalProduct.brand && candidate.brand.toLowerCase().includes(originalProduct.brand.toLowerCase()),
       betterCommission: (signals.commissionRate || 0) > 3,
       betterForPriority1: productKpis[0]?.score >= 60,
     },
+    _enrichedSignals: signals,
   };
 }
 
@@ -624,4 +626,22 @@ export async function computeSemanticScores(
     }
     return scores;
   }
+}
+
+function categoriesInSameGroup(catA: string, catB: string): boolean {
+  const a = catA.toLowerCase();
+  const b = catB.toLowerCase();
+  const groups: string[][] = [
+    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance'],
+    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'sunglasses'],
+    ['electronics', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home'],
+    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor'],
+    ['sports', 'fitness', 'outdoors', 'exercise'],
+  ];
+  for (const group of groups) {
+    const aIn = group.some(kw => a.includes(kw));
+    const bIn = group.some(kw => b.includes(kw));
+    if (aIn && bIn) return true;
+  }
+  return false;
 }
