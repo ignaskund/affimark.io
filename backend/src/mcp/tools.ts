@@ -341,14 +341,33 @@ function extractTitleFromHtml(html: string): string | null {
 
 function extractPriceFromHtml(html: string): number | null {
   const patterns = [
-    /"price"\s*:\s*"?(\d+\.?\d*)"?/i,
-    /class="[^"]*price[^"]*"[^>]*>\s*\$?([\d,.]+)/i,
-    /itemprop="price"\s+content="(\d+\.?\d*)"/i,
+    // JSON-LD / structured data
+    /"price"\s*:\s*"?(\d+[.,]?\d*)"?/i,
+    /itemprop="price"\s+content="(\d+[.,]?\d*)"/i,
+    /"offers"[^}]*"price"\s*:\s*"?(\d+[.,]?\d*)"?/i,
+    // Meta tags (common on Shopify, European stores)
+    /property="product:price:amount"\s+content="(\d+[.,]?\d*)"/i,
+    /property="og:price:amount"\s+content="(\d+[.,]?\d*)"/i,
+    // European price formats: €29,90 or 29,90 € or EUR 29.90
+    /(\d+[.,]\d{2})\s*€/,
+    /€\s*(\d+[.,]\d{2})/,
+    /EUR\s*(\d+[.,]\d{2})/i,
+    // CSS class patterns
+    /class="[^"]*price[^"]*"[^>]*>\s*[€$£]?\s*([\d.,]+)/i,
+    /class="[^"]*product-price[^"]*"[^>]*>\s*[€$£]?\s*([\d.,]+)/i,
+    /data-price="(\d+[.,]?\d*)"/i,
   ];
   for (const pattern of patterns) {
     const match = html.match(pattern);
     if (match?.[1]) {
-      const price = parseFloat(match[1].replace(/,/g, ''));
+      // Handle European comma-as-decimal: "29,90" → 29.90
+      let priceStr = match[1];
+      if (/^\d+,\d{2}$/.test(priceStr)) {
+        priceStr = priceStr.replace(',', '.');
+      } else {
+        priceStr = priceStr.replace(/,/g, '');
+      }
+      const price = parseFloat(priceStr);
       if (price > 0 && price < 100000) return price;
     }
   }

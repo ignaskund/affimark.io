@@ -321,28 +321,45 @@ async function generateProductTypeQueries(product: IdentifiedProduct, env: any):
     q.replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/[,;:!()[\]]/g, ' ').replace(/\s+/g, ' ').trim()
   ))].filter(q => q.split(/\s+/).length >= 2);
 
-  // AI distillation: produce a concise 2-3 word product-type query for Datafeedr
+  // AI distillation: produce concise ENGLISH product-type queries for Datafeedr.
+  // Handles: non-English product titles, multi-product sets, ambiguous product types.
   const apiKey = env?.OPENAI_API_KEY;
   if (apiKey && unique.length > 0) {
     try {
       const { aiComplete } = await import('../services/ai-client');
       const context = unique.slice(0, 3).join(' | ');
-      console.log(`[Agent] AI distillation input: "${context}"`);
+      const categoryHint = product.category !== 'General' ? product.category : '';
+      console.log(`[Agent] AI distillation input: "${context}" (category: ${categoryHint})`);
       const distilled = await aiComplete({
-        prompt: `Given these product search queries: "${context}"
-Distill to the BEST 2-4 word product TYPE for affiliate product search. Never include brand names.
-Examples: "cable knit pullover", "polarized sunglasses", "dry texture hair spray", "wireless earbuds", "retro square sunglasses"
-Return ONLY the 2-4 word phrase, nothing else.`,
-        maxTokens: 20,
+        prompt: `You are an affiliate product search expert. Given these product descriptions:
+"${context}"
+${categoryHint ? `Product category: ${categoryHint}` : ''}
+${product.title ? `Full product name: "${product.title}"` : ''}
+
+Generate exactly 2 search queries IN ENGLISH that would find similar products in an affiliate product database.
+- Query 1: The most specific 2-4 word product type (e.g. "hyaluronic acid face serum", "air fryer", "mma sparring gloves", "merino hiking socks", "hair moisture treatment set")
+- Query 2: A broader 1-3 word product category (e.g. "face serum", "kitchen fryer", "boxing gloves", "hiking socks", "hair care set")
+
+RULES:
+- ALWAYS output in English, even if the input is in German/French/other languages
+- Never include brand names
+- For nutrition/supplement products, use terms like "sports supplement" or "protein powder", NOT "sports gear"
+- For product sets/kits, describe what's IN the set (e.g. "hair care travel kit" not just "travel set")
+
+Return ONLY two lines, nothing else:
+specific query
+broad query`,
+        maxTokens: 40,
         apiKey,
       });
-      const phrase = distilled.trim().replace(/^["']|["']$/g, '').replace(/\./g, '').toLowerCase();
-      console.log(`[Agent] AI distillation raw output: "${distilled.trim()}" → cleaned: "${phrase}"`);
-      if (phrase && phrase.split(/\s+/).length >= 2 && phrase.split(/\s+/).length <= 5) {
-        console.log(`[Agent] AI distilled query accepted: "${phrase}"`);
-        return [phrase, ...unique.filter(q => q.toLowerCase() !== phrase)];
-      } else {
-        console.warn(`[Agent] AI distilled query rejected (word count): "${phrase}"`);
+      const lines = distilled.trim().split('\n').map(l => l.trim().replace(/^["'\d.)\-]+\s*/, '').replace(/["']/g, '').toLowerCase()).filter(l => l.length >= 3);
+      console.log(`[Agent] AI distillation output: ${lines.map(l => `"${l}"`).join(', ')}`);
+
+      const validQueries = lines.filter(l => l.split(/\s+/).length >= 1 && l.split(/\s+/).length <= 6);
+      if (validQueries.length > 0) {
+        const merged = [...validQueries, ...unique.filter(q => !validQueries.includes(q.toLowerCase()))];
+        console.log(`[Agent] AI distilled queries accepted: ${validQueries.map(q => `"${q}"`).join(', ')}`);
+        return merged;
       }
     } catch (e: any) {
       console.warn(`[Agent] AI distillation failed: ${e?.message || e}`);
@@ -559,15 +576,16 @@ function categoriesOverlap(candidateCategory: string, originalCategory: string):
   const a = candidateCategory.toLowerCase();
   const b = originalCategory.toLowerCase();
   if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
 
   const groups: string[][] = [
-    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance'],
-    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'watches', 'bags', 'sunglasses'],
-    ['electronics', 'technology', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home'],
-    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor', 'appliances'],
-    ['sports', 'fitness', 'outdoors', 'camping', 'exercise', 'yoga'],
+    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance', 'face', 'body care'],
+    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'watches', 'bags', 'sunglasses', 'hosiery', 'socks', 'gloves', 'scarves'],
+    ['electronics', 'technology', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home', 'appliances', 'kitchen appliances'],
+    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor', 'household'],
+    ['sports', 'fitness', 'outdoors', 'camping', 'exercise', 'yoga', 'martial arts', 'boxing', 'mma', 'hiking', 'running', 'cycling', 'socks', 'athletic', 'sportswear'],
+    ['food', 'beverage', 'grocery', 'supplements', 'nutrition', 'vitamins', 'protein', 'health supplements', 'sports nutrition'],
     ['toys', 'games', 'kids', 'baby', 'dolls'],
-    ['food', 'beverage', 'grocery', 'supplements', 'nutrition'],
     ['books', 'media', 'music', 'movies'],
     ['automotive', 'car', 'vehicle'],
     ['pets', 'dog', 'cat', 'animal'],
@@ -577,6 +595,22 @@ function categoriesOverlap(candidateCategory: string, originalCategory: string):
     const aInGroup = group.some(kw => a.includes(kw));
     const bInGroup = group.some(kw => b.includes(kw));
     if (aInGroup && bInGroup) return true;
+  }
+
+  // Cross-group overlaps that are valid
+  const crossLinks: [string[], string[]][] = [
+    [['sports', 'fitness', 'outdoors', 'hiking', 'athletic'], ['fashion', 'clothing', 'apparel', 'hosiery', 'socks', 'gloves', 'sportswear']],
+    [['sports', 'fitness'], ['food', 'nutrition', 'supplements', 'health']],
+    [['home', 'kitchen'], ['electronics', 'appliances']],
+    [['beauty', 'health'], ['electronics', 'devices', 'massager']],
+  ];
+
+  for (const [groupA, groupB] of crossLinks) {
+    const aInA = groupA.some(kw => a.includes(kw));
+    const bInB = groupB.some(kw => b.includes(kw));
+    const aInB = groupB.some(kw => a.includes(kw));
+    const bInA = groupA.some(kw => b.includes(kw));
+    if ((aInA && bInB) || (aInB && bInA)) return true;
   }
 
   return false;
