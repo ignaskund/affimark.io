@@ -420,40 +420,28 @@ app.post('/scan-storefront', async (c) => {
 
       if (pageRes.ok) {
         const html = await pageRes.text();
-
-        // Extract Amazon product links (most common for creator storefronts)
-        const amazonPattern = /https?:\/\/(?:www\.)?amazon\.[a-z.]+\/(?:[^"'\s]*\/)?dp\/([A-Z0-9]{10})[^"'\s]*/gi;
-        const matches = html.matchAll(amazonPattern);
-        const seenAsins = new Set<string>();
-
-        for (const match of matches) {
-          const asin = match[1];
-          if (seenAsins.has(asin)) continue;
-          seenAsins.add(asin);
-          productUrls.push({
-            url: `https://www.amazon.com/dp/${asin}`,
-            title: '',
-          });
-        }
-
-        // Extract product titles from links with alt text or title attributes
-        const linkPattern = /<a[^>]*href="([^"]*\/dp\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]*)</gi;
-        const linkMatches = html.matchAll(linkPattern);
-        for (const m of linkMatches) {
-          const titleText = m[2]?.trim();
-          if (titleText && titleText.length > 5) {
-            const asinMatch = m[1].match(/\/dp\/([A-Z0-9]{10})/i);
-            if (asinMatch) {
-              const existing = productUrls.find(p => p.url.includes(asinMatch[1]));
-              if (existing && !existing.title) existing.title = titleText;
-            }
-          }
-        }
-
-        console.log(`[Portfolio Scan] Found ${productUrls.length} product URLs from ${resolvedUrl}`);
+        extractAmazonProductsFromHtml(html, productUrls);
+        console.log(`[Portfolio Scan] Static scrape found ${productUrls.length} product URLs`);
       }
     } catch (e) {
-      console.warn('[Portfolio Scan] Page fetch failed:', e);
+      console.warn('[Portfolio Scan] Static page fetch failed:', e);
+    }
+
+    // If static scrape found nothing, try Browser Rendering for JS-heavy pages
+    if (productUrls.length === 0 && (c.env as any).BROWSER) {
+      try {
+        const puppeteer = await import('@cloudflare/puppeteer');
+        const browser = await puppeteer.default.launch((c.env as any).BROWSER);
+        const page = await browser.newPage();
+        await page.goto(resolvedUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+        const html = await page.content();
+        await browser.close();
+
+        extractAmazonProductsFromHtml(html, productUrls);
+        console.log(`[Portfolio Scan] Browser Rendering found ${productUrls.length} product URLs`);
+      } catch (e: any) {
+        console.warn('[Portfolio Scan] Browser Rendering failed:', e?.message || e);
+      }
     }
 
     if (productUrls.length === 0) {
@@ -517,5 +505,32 @@ app.post('/scan-storefront', async (c) => {
     return c.json({ error: 'Scan failed', message: error.message }, 500);
   }
 });
+
+function extractAmazonProductsFromHtml(html: string, productUrls: Array<{ url: string; title: string }>) {
+  const amazonPattern = /https?:\/\/(?:www\.)?amazon\.[a-z.]+\/(?:[^"'\s]*\/)?dp\/([A-Z0-9]{10})[^"'\s]*/gi;
+  const matches = html.matchAll(amazonPattern);
+  const seenAsins = new Set(productUrls.map(p => {
+    const m = p.url.match(/\/dp\/([A-Z0-9]{10})/i);
+    return m ? m[1] : '';
+  }));
+
+  for (const match of matches) {
+    const asin = match[1];
+    if (seenAsins.has(asin)) continue;
+    seenAsins.add(asin);
+    productUrls.push({ url: `https://www.amazon.com/dp/${asin}`, title: '' });
+  }
+
+  const linkPattern = /<a[^>]*href="([^"]*\/dp\/([A-Z0-9]{10})[^"]*)"[^>]*>([^<]*)</gi;
+  const linkMatches = html.matchAll(linkPattern);
+  for (const m of linkMatches) {
+    const titleText = m[3]?.trim();
+    const asin = m[2];
+    if (titleText && titleText.length > 5 && asin) {
+      const existing = productUrls.find(p => p.url.includes(asin));
+      if (existing && !existing.title) existing.title = titleText;
+    }
+  }
+}
 
 export default app;

@@ -175,6 +175,7 @@ Return ONLY JSON: {"brand": "brand name or null", "product": "product descriptio
   }
 
   // Strategy 3: Scrape the product page (works for ANY URL)
+  let scrapeFailed = false;
   try {
     const cleanUrl = isAmazon && asinMatch ? `https://www.amazon.com/dp/${asinMatch[1]}` : url;
     const controller = new AbortController();
@@ -197,9 +198,39 @@ Return ONLY JSON: {"brand": "brand name or null", "product": "product descriptio
       if (title && title.length > 10) {
         return buildIdentifiedProduct(title, null, null, price, 'USD', 'scrape');
       }
+      scrapeFailed = true;
+    } else {
+      scrapeFailed = true;
     }
   } catch (e: any) {
+    scrapeFailed = true;
     if (e?.name !== 'AbortError') console.warn('[MCP identify_product] Scrape failed:', e?.message);
+  }
+
+  // Strategy 3b: Cloudflare Browser Rendering (for JS-heavy pages)
+  // Uses the BROWSER binding to render the page with a headless browser,
+  // then extracts product info from the fully rendered HTML.
+  if (scrapeFailed && env?.BROWSER) {
+    try {
+      const puppeteer = await import('@cloudflare/puppeteer');
+      const browser = await puppeteer.default.launch(env.BROWSER);
+      const page = await browser.newPage();
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
+      const html = await page.content();
+      await browser.close();
+
+      const title = extractTitleFromHtml(html);
+      const price = extractPriceFromHtml(html);
+      if (title && title.length > 10) {
+        console.log(`[MCP identify_product] Browser Rendering extracted: "${title}" (price: ${price})`);
+        return buildIdentifiedProduct(title, null, null, price, 'USD', 'scrape');
+      }
+      console.warn('[MCP identify_product] Browser Rendering: page rendered but no title found');
+    } catch (e: any) {
+      console.warn('[MCP identify_product] Browser Rendering failed:', e?.message || e);
+    }
+  } else if (scrapeFailed && !env?.BROWSER) {
+    console.log('[MCP identify_product] No BROWSER binding — skipping Browser Rendering (local dev)');
   }
 
   // Strategy 4: AI analysis of URL structure
