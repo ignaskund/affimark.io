@@ -19,6 +19,12 @@ import type {
 export async function getCreatorProfile(userId: string, env: any): Promise<CreatorProfile> {
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[MCP getCreatorProfile] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+    return buildEmptyProfile(userId);
+  }
+
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
 
   const [prefsRes, socialsRes, storefrontsRes, productsRes, profileRes] = await Promise.all([
@@ -29,8 +35,20 @@ export async function getCreatorProfile(userId: string, env: any): Promise<Creat
     fetch(`${supabaseUrl}/rest/v1/user_product_profiles?user_id=eq.${userId}`, { headers }),
   ]);
 
+  // Check for auth errors (any non-200 indicates bad API key or network issue)
+  for (const [name, res] of [['prefs', prefsRes], ['socials', socialsRes], ['storefronts', storefrontsRes], ['products', productsRes], ['profiles', profileRes]] as const) {
+    if (!res.ok) {
+      const errText = await (res as Response).text().catch(() => 'unknown');
+      console.error(`[MCP getCreatorProfile] Supabase ${name} query failed (${(res as Response).status}): ${errText}`);
+    }
+  }
+
   const [prefs, socials, storefronts, products, profiles] = await Promise.all([
-    prefsRes.json(), socialsRes.json(), storefrontsRes.json(), productsRes.json(), profileRes.json(),
+    prefsRes.ok ? prefsRes.json() : [],
+    socialsRes.ok ? socialsRes.json() : [],
+    storefrontsRes.ok ? storefrontsRes.json() : [],
+    productsRes.ok ? productsRes.json() : [],
+    profileRes.ok ? profileRes.json() : [],
   ]);
 
   const pref = Array.isArray(prefs) ? prefs[0] : null;
@@ -96,6 +114,28 @@ export async function getCreatorProfile(userId: string, env: any): Promise<Creat
   };
 }
 
+function buildEmptyProfile(userId: string): CreatorProfile {
+  return {
+    userId,
+    productPriorities: [],
+    brandPriorities: [],
+    socialContext: {
+      platforms: [],
+      contentCategories: [],
+      audienceDemographics: { ageRange: '', topCountries: [], interests: [] },
+      estimatedReach: 0,
+    },
+    storefrontContext: {
+      dominantCategories: [],
+      topBrands: [],
+      avgPricePoint: 0,
+      preferredNetworks: [],
+    },
+    storefrontProducts: [],
+    confidenceScore: 0,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL 2: identify_product
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -155,7 +195,8 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
               const aiResult = await aiComplete({
                 prompt: `This product slug was extracted from ${parsed.hostname}: "${title}"
 Separate the brand name from the product description.
-Return ONLY JSON: {"brand": "brand name or null", "product": "product description without brand", "category": "Fashion|Beauty & Health|Electronics|Home & Garden|Sports & Outdoors"}`,
+Return ONLY JSON: {"brand": "brand name or null", "product": "product description without brand", "category": "Fashion|Beauty & Health|Electronics|Home & Garden|Sports & Outdoors|Health & Nutrition|Sports Nutrition"}
+Note: Sports supplements, vitamins, and nutrition products should be "Health & Nutrition" or "Sports Nutrition", NOT "Sports & Outdoors".`,
                 maxTokens: 80, apiKey: env.OPENAI_API_KEY,
               });
               const parsed2 = extractJson(aiResult);
@@ -416,11 +457,16 @@ function inferBrand(title: string): string | null {
   const words = title.split(/\s+/);
   if (words.length === 0) return null;
 
+  // If the title is very short (1-2 words), it's probably a brand+product combo from URL slug
+  // Don't treat the entire thing as a brand
+  if (words.length <= 2 && words.join(' ').length < 25) return null;
+
   const generic = new Set([
     'the', 'a', 'set', 'pack', 'new', 'best', 'top', 'women', 'men', 'for',
     'with', 'and', 'in', 'of', 'by', 'dry', 'wet', 'mini', 'pro', 'ultra',
     'wireless', 'portable', 'organic', 'natural', 'premium', 'classic',
     'vintage', 'retro', 'modern', 'smart', 'digital', 'professional',
+    'sport', 'perform', 'recover', 'active', 'energy', 'power',
   ]);
   const productWords = new Set([
     'sunglasses', 'spray', 'cream', 'serum', 'lotion', 'shampoo', 'oil',
@@ -428,12 +474,12 @@ function inferBrand(title: string): string | null {
     'headphones', 'earbuds', 'speaker', 'charger', 'lamp', 'candle',
     'moisturizer', 'foundation', 'mascara', 'lipstick', 'blush', 'concealer',
     'hair', 'texture', 'volume', 'matte', 'glossy', 'lightweight',
+    'supplement', 'protein', 'vitamin', 'capsule', 'tablet', 'powder',
+    'nutrition', 'drink', 'bar', 'gel', 'electrolyte',
   ]);
 
-  // Collect brand words: take leading words that look like proper nouns (capitalized)
-  // and stop at the first generic/product word
   const brandParts: string[] = [];
-  for (let i = 0; i < Math.min(words.length, 4); i++) {
+  for (let i = 0; i < Math.min(words.length, 3); i++) {
     const word = words[i];
     const lower = word.toLowerCase();
     if (generic.has(lower) || productWords.has(lower)) break;
@@ -444,7 +490,9 @@ function inferBrand(title: string): string | null {
 
   if (brandParts.length === 0) return null;
   const candidate = brandParts.join(' ');
-  if (candidate.length < 2 || candidate.length > 40) return null;
+  // Don't accept brand if it's the entire title (means extraction failed)
+  if (candidate.toLowerCase() === title.toLowerCase().trim()) return null;
+  if (candidate.length < 2 || candidate.length > 30) return null;
   return candidate;
 }
 
@@ -455,7 +503,8 @@ function mapCategory(raw: string): string {
     'Fashion': ['clothing', 'shoes', 'jewelry', 'watches', 'accessories', 'apparel', 'fashion', 'sweater', 'pullover', 'dress', 'jacket'],
     'Home & Garden': ['home', 'kitchen', 'garden', 'furniture', 'bedding', 'bath'],
     'Beauty & Health': ['beauty', 'health', 'personal care', 'skin', 'makeup', 'hair', 'vitamin'],
-    'Sports & Outdoors': ['sports', 'outdoors', 'fitness', 'exercise'],
+    'Health & Nutrition': ['supplement', 'nutrition', 'protein', 'vitamin', 'mineral', 'dietary', 'orthomol', 'electrolyte', 'probiotic', 'omega'],
+    'Sports & Outdoors': ['sports', 'outdoors', 'fitness', 'exercise', 'sport', 'athletic', 'training'],
   };
   for (const [cat, kws] of Object.entries(map)) {
     if (kws.some(k => lower.includes(k))) return cat;
@@ -466,11 +515,12 @@ function mapCategory(raw: string): string {
 function inferCategory(title: string): string {
   const lower = title.toLowerCase();
   const rules: [string, string[]][] = [
-    ['Beauty & Health', ['serum', 'moisturizer', 'lipstick', 'mascara', 'shampoo', 'conditioner', 'perfume', 'hair spray', 'texture spray', 'skincare', 'blush', 'foundation', 'sunscreen']],
+    ['Beauty & Health', ['serum', 'moisturizer', 'lipstick', 'mascara', 'shampoo', 'conditioner', 'perfume', 'hair spray', 'texture spray', 'skincare', 'blush', 'foundation', 'sunscreen', 'vitamin', 'supplement', 'collagen', 'probiotic', 'biotin']],
+    ['Health & Nutrition', ['orthomol', 'protein', 'creatine', 'bcaa', 'electrolyte', 'magnesium', 'omega', 'multivitamin', 'nutrition', 'dietary', 'mineral', 'zinc', 'iron supplement', 'sport perform', 'sport recover', 'pre workout', 'post workout', 'energy gel', 'energy bar', 'whey', 'casein', 'amino acid']],
     ['Electronics', ['headphones', 'earbuds', 'speaker', 'charger', 'bluetooth', 'camera', 'laptop', 'phone']],
     ['Fashion', ['dress', 'shirt', 'pullover', 'sweater', 'jacket', 'jeans', 'shoes', 'sneakers', 'boots', 'bag', 'handbag', 'sunglasses', 'cardigan', 'knit', 'cable crew']],
     ['Home & Garden', ['lamp', 'candle', 'pillow', 'rug', 'vase', 'pan', 'mug', 'organizer']],
-    ['Sports & Outdoors', ['yoga', 'gym', 'fitness', 'running', 'hiking']],
+    ['Sports & Outdoors', ['yoga', 'gym', 'fitness', 'running', 'hiking', 'sport', 'athletic', 'training']],
   ];
   for (const [cat, kws] of rules) {
     if (kws.some(kw => lower.includes(kw))) return cat;

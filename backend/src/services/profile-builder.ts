@@ -57,13 +57,12 @@ export async function buildUserProfile(
 ): Promise<UserProfile> {
   console.log(`[Profile Builder] Building profile for user ${userId}`);
 
-  // Check if we have a recent profile (skip if force refresh)
-  if (!forceRefresh) {
-    const existingProfile = await getExistingProfile(userId, env);
-    if (existingProfile && !isProfileStale(existingProfile)) {
-      console.log('[Profile Builder] Using cached profile');
-      return existingProfile;
-    }
+  // Always try to load the cached profile first — we may need it as fallback
+  const existingProfile = await getExistingProfile(userId, env);
+
+  if (!forceRefresh && existingProfile && !isProfileStale(existingProfile)) {
+    console.log('[Profile Builder] Using cached profile');
+    return existingProfile;
   }
 
   // 1. Get priorities from DB (set during onboarding)
@@ -82,6 +81,16 @@ export async function buildUserProfile(
     hasStorefronts: storefrontContext.dominantCategories.length > 0,
   });
 
+  // If the fresh build produced an empty profile but we have a cached one
+  // with real data, prefer the cached version (Supabase may be unreachable)
+  if (confidenceScore === 0 && existingProfile && existingProfile.confidenceScore > 0) {
+    console.warn(
+      `[Profile Builder] Fresh build returned empty (confidence=0) but cached profile has confidence=${existingProfile.confidenceScore}. ` +
+      'Supabase queries likely failed. Returning cached profile.'
+    );
+    return existingProfile;
+  }
+
   const profile: UserProfile = {
     userId,
     productPriorities: priorities.productPriorities,
@@ -95,8 +104,12 @@ export async function buildUserProfile(
     confidenceScore,
   };
 
-  // Store in database
-  await storeUserProfile(profile, env);
+  // Only persist if we actually gathered data — don't overwrite a good cache with empty data
+  if (confidenceScore > 0) {
+    await storeUserProfile(profile, env);
+  } else {
+    console.warn('[Profile Builder] Skipping DB write — empty profile would overwrite cached data');
+  }
 
   console.log(`[Profile Builder] Profile complete. Confidence: ${confidenceScore}%`);
   return profile;
@@ -174,27 +187,48 @@ function isProfileStale(profile: UserProfile): boolean {
  * Get user priorities from Supabase
  */
 async function getUserPriorities(userId: string, env: any) {
-  // Query Supabase via REST API
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/user_creator_preferences?user_id=eq.${userId}&select=product_priorities,brand_priorities`,
-    {
-      headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
-      },
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[Profile Builder] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+    return { productPriorities: [], brandPriorities: [] };
+  }
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/user_creator_preferences?user_id=eq.${userId}&select=product_priorities,brand_priorities`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => 'unknown');
+      console.error(`[Profile Builder] Supabase priorities query failed (${response.status}): ${errText}`);
+      return { productPriorities: [], brandPriorities: [] };
     }
-  );
 
-  const data = await response.json();
-  const prefs = Array.isArray(data) ? data[0] : null;
+    const data = await response.json();
+    const prefs = Array.isArray(data) ? data[0] : null;
 
-  return {
-    productPriorities: prefs?.product_priorities || [],
-    brandPriorities: prefs?.brand_priorities || [],
-  };
+    if (prefs) {
+      console.log(`[Profile Builder] Loaded priorities: ${prefs.product_priorities?.length || 0} product, ${prefs.brand_priorities?.length || 0} brand`);
+    } else {
+      console.warn(`[Profile Builder] No preferences found for user ${userId}`);
+    }
+
+    return {
+      productPriorities: prefs?.product_priorities || [],
+      brandPriorities: prefs?.brand_priorities || [],
+    };
+  } catch (err: any) {
+    console.error(`[Profile Builder] Failed to fetch priorities: ${err?.message || err}`);
+    return { productPriorities: [], brandPriorities: [] };
+  }
 }
 
 /**
