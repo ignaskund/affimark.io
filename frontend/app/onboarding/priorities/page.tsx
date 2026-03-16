@@ -28,9 +28,20 @@ export default function PrioritiesOnboardingPage() {
   const [brandPriorities, setBrandPriorities] = useState<Priority[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // U12: product data quality gate
+  const [productDataCount, setProductDataCount] = useState<{ total: number; enriched: number } | null>(null);
 
   // Check if coming from magic onboarding
   const fromMagic = searchParams.get('from') === 'magic';
+
+  // U12: Fetch product count for quality gate once session is ready
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    fetch('/api/user/product-count', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setProductDataCount(data); })
+      .catch(() => {/* non-fatal */});
+  }, [status]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -94,6 +105,16 @@ export default function PrioritiesOnboardingPage() {
         method: 'POST',
         credentials: 'include',
       });
+
+      // U2: Trigger product enrichment in background — now that priorities are saved,
+      // the enrichment run will pick up brand/category signals aligned with those priorities.
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      fetch(`${apiUrl}/api/finder/enrich-products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: session?.user?.id }),
+      }).catch(() => {/* fire-and-forget, ignore errors */});
 
       // Navigate to dashboard
       router.push('/dashboard/product-finder');
@@ -276,6 +297,27 @@ export default function PrioritiesOnboardingPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* U12: Quality gate warning */}
+                {productDataCount !== null && productDataCount.enriched < 3 && (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm space-y-2">
+                    <p className="font-semibold text-amber-400">
+                      Low product data quality
+                    </p>
+                    <p className="text-gray-300">
+                      {productDataCount.total === 0
+                        ? 'No products found. For best search results, import your storefront first.'
+                        : `Only ${productDataCount.enriched} of ${productDataCount.total} product${productDataCount.total !== 1 ? 's have' : ' has'} brand, category, and price data. The audit and alternative search will be less accurate.`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/onboarding/magic?from=priorities')}
+                      className="text-amber-400 hover:text-amber-300 underline underline-offset-2"
+                    >
+                      Go back to import storefront →
+                    </button>
+                  </div>
+                )}
 
                 <div className="text-center text-sm text-gray-400">
                   You can always change these later in Settings.

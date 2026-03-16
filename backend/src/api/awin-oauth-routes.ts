@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { createClient } from '@supabase/supabase-js';
+import { toEUR, getRate } from '../utils/exchange-rates';
 
 type Bindings = Env;
 
@@ -256,8 +257,8 @@ awinOAuthRoutes.post('/sync', async (c) => {
           revenue: parseFloat(txn.sale_amount || 0),
           commission: parseFloat(txn.commission_amount || 0),
           original_currency: txn.currency || 'EUR',
-          exchange_rate: 1.0, // TODO: Get actual exchange rate
-          commission_eur: parseFloat(txn.commission_amount || 0),
+          exchange_rate: getRate(txn.currency || 'EUR'),
+          commission_eur: toEUR(parseFloat(txn.commission_amount || 0), txn.currency || 'EUR'),
           raw_data: txn,
         }, {
           onConflict: 'platform,product_id,transaction_date',

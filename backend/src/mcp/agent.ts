@@ -218,10 +218,35 @@ export async function runAlternativeSearchAgent(
 
   const agentReasoning = buildAgentReasoning(product, profile, diverse, iterations);
 
-  console.log(`[Agent] Done: ${diverse.length} alternatives from ${allCandidateIds.size} evaluated in ${Date.now() - startTime}ms`);
+  const durationMs = Date.now() - startTime;
+  console.log(`[Agent] Done: ${diverse.length} alternatives from ${allCandidateIds.size} evaluated in ${durationMs}ms`);
   for (const alt of diverse) {
     console.log(`  → "${alt.name.slice(0, 55)}" | ${alt.brand} | $${alt.price} | combined=${alt.combinedScore} sem=${alt.semanticSimilarity} pri=${alt.priorityWeightedScore}`);
   }
+
+  // U9: Structured metrics — parseable by log aggregators (Logflare, Cloudflare Analytics Engine, etc.)
+  const avgCombinedScore = diverse.length > 0
+    ? Math.round(diverse.reduce((s, a) => s + a.combinedScore, 0) / diverse.length)
+    : 0;
+  const avgSemanticScore = diverse.length > 0
+    ? Math.round(diverse.reduce((s, a) => s + (a.semanticSimilarity ?? 0), 0) / diverse.length)
+    : 0;
+  const iterationQueries = iterations.map(it => it.query);
+  console.log('[Agent:metrics] ' + JSON.stringify({
+    userId,
+    productCategory: product.category,
+    productBrand: product.brand ?? null,
+    productConfidence: product.confidence ?? null,
+    profileConfidence: profile.confidenceScore,
+    searchIterations: iterations.length,
+    iterationQueries,
+    totalCandidatesEvaluated: allCandidateIds.size,
+    alternativesReturned: diverse.length,
+    avgCombinedScore,
+    avgSemanticScore,
+    zeroResults: diverse.length === 0,
+    durationMs,
+  }));
 
   return {
     originalProduct: product,
@@ -277,9 +302,10 @@ async function generateProductTypeQueries(product: IdentifiedProduct, env: any):
       const { aiComplete } = await import('../services/ai-client');
       const context = unique.slice(0, 3).join(' | ');
       const distilled = await aiComplete({
-        prompt: `Given these product search queries: "${context}"
-Distill to the BEST 2-3 word product TYPE for affiliate search. Never include brand names.
-Examples: "cable knit pullover", "polarized sunglasses", "dry texture spray", "wireless earbuds"
+        prompt: `Product category: "${product.category}"${product.subcategory ? `, type: "${product.subcategory}"` : ''}
+Given these search queries: "${context}"
+Distill to the BEST 2-3 word product TYPE for affiliate search. Never include brand names. Must match the category.
+Examples: "cable knit pullover" (Fashion), "polarized sunglasses" (Fashion), "dry texture spray" (Beauty & Health), "wireless earbuds" (Electronics), "vitamin c serum" (Beauty & Health)
 Return ONLY the 2-3 word phrase, nothing else.`,
         maxTokens: 20,
         apiKey: env.OPENAI_API_KEY,

@@ -11,6 +11,8 @@
  * - Refund Risk Proxy (category + review sentiment)
  */
 
+import { toEUR } from '../utils/exchange-rates';
+
 export interface OutcomeFeasibilityScore {
   overall: number; // 0-100
   merchantRisk: number; // 0-100 (higher = lower risk)
@@ -62,17 +64,26 @@ export async function scoreOutcomeFeasibility(
   const warnings: string[] = [];
   const dataSources: string[] = [];
 
+  // U11: Normalise price to EUR so all threshold comparisons (€20, €100, €500, €1000)
+  // are applied consistently regardless of the original product currency.
+  const normalizedProduct: ProductForScoring = {
+    ...product,
+    price: product.price > 0
+      ? toEUR(product.price, product.currency || 'EUR')
+      : product.price,
+  };
+
   // Component 1: Merchant Risk Score
-  const merchantRisk = scoreMerchantRisk(product, dataSources, warnings);
+  const merchantRisk = scoreMerchantRisk(normalizedProduct, dataSources, warnings);
 
   // Component 2: Program Friction Score
-  const programFriction = scoreProgramFriction(product, dataSources, warnings);
+  const programFriction = scoreProgramFriction(normalizedProduct, dataSources, warnings);
 
   // Component 3: Demand Evidence Score
-  const demandEvidence = scoreDemandEvidence(product, dataSources, warnings);
+  const demandEvidence = scoreDemandEvidence(normalizedProduct, dataSources, warnings);
 
   // Component 4: Refund Risk Score
-  const refundRisk = scoreRefundRisk(product, dataSources, warnings);
+  const refundRisk = scoreRefundRisk(normalizedProduct, dataSources, warnings);
 
   // Overall score (weighted average)
   const overall = Math.round(
@@ -83,7 +94,7 @@ export async function scoreOutcomeFeasibility(
   );
 
   // Confidence based on data availability
-  const confidence = calculateConfidence(product, dataSources);
+  const confidence = calculateConfidence(normalizedProduct, dataSources);
 
   // Requires verification if overall < 60 OR confidence < 50
   const requiresVerification = overall < 60 || confidence < 50;
@@ -254,10 +265,12 @@ function scoreDemandEvidence(
     dataSources.push('rating_with_volume');
   }
 
-  if (product.price > 1000) {
-    score -= 10;
-  } else if (product.price >= 100 && product.price <= 500) {
-    score += 10;
+  if (product.price > 0) {
+    if (product.price > 1000) {
+      score -= 10;
+    } else if (product.price >= 100 && product.price <= 500) {
+      score += 10;
+    }
   }
 
   return Math.max(0, Math.min(100, score));
@@ -303,13 +316,14 @@ function scoreRefundRisk(
     }
   }
 
-  // Price point proxy
-  // Very cheap items (<€20) often have quality issues
-  if (product.price < 20) {
-    score -= 15;
-    warnings.push('Low price point may indicate quality/refund risk');
-  } else if (product.price >= 100) {
-    score += 10; // Premium pricing usually means better QC
+  // Price point proxy — only when we have a valid price
+  if (product.price > 0) {
+    if (product.price < 20) {
+      score -= 15;
+      warnings.push('Low price point may indicate quality/refund risk');
+    } else if (product.price >= 100) {
+      score += 10; // Premium pricing usually means better QC
+    }
   }
 
   return Math.max(0, Math.min(100, score));

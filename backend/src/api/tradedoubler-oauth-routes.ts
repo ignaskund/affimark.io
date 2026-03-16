@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { createClient } from '@supabase/supabase-js';
+import { toEUR, getRate } from '../utils/exchange-rates';
 
 type Bindings = Env;
 
@@ -255,8 +256,8 @@ tradedoublerOAuthRoutes.post('/sync', async (c) => {
           revenue: parseFloat(event.orderValue || 0),
           commission: parseFloat(event.affiliateCommission || 0),
           original_currency: event.currency || 'EUR',
-          exchange_rate: 1.0, // TODO: Get actual exchange rate
-          commission_eur: parseFloat(event.affiliateCommission || 0),
+          exchange_rate: getRate(event.currency || 'EUR'),
+          commission_eur: toEUR(parseFloat(event.affiliateCommission || 0), event.currency || 'EUR'),
           raw_data: event,
         }, {
           onConflict: 'platform,product_id,transaction_date',

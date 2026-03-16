@@ -48,6 +48,9 @@ export const OPERATION_COSTS = {
 
   // Outcome scoring
   'outcome_feasibility_check': 0.002, // Per product outcome check
+
+  // Portfolio operations
+  'portfolio_audit': 0.10, // Full portfolio audit (batch product scoring)
 } as const;
 
 type OperationType = keyof typeof OPERATION_COSTS;
@@ -77,7 +80,7 @@ export async function checkBudget(
   env: any
 ): Promise<BudgetCheck> {
   const estimatedCost = OPERATION_COSTS[operationType];
-  const budget = getUserBudget(userId, env); // TODO: Get from user plan
+  const budget = await getUserBudget(userId, env);
   const usage = await getUserUsage(userId, env);
 
   console.log(`[Cost Governor] ${userId} - ${operationType} (est: $${estimatedCost.toFixed(4)})`);
@@ -185,12 +188,43 @@ export async function logOperationCost(
 }
 
 /**
- * Get user's cost budget based on plan
+ * Resolve the user's plan tier from the `profiles` table.
+ * Maps `user_type` → budget tier key. Defaults to 'free' if the row is
+ * missing or the column does not yet exist.
  */
-function getUserBudget(userId: string, env: any): CostBudget {
-  // TODO: Fetch from user's plan in database
-  // For now, default to 'free' tier
-  return BUDGET_TIERS['free'];
+async function getUserPlan(userId: string, env: any): Promise<string> {
+  const supabaseUrl = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SERVICE_KEY;
+  if (!supabaseUrl || !supabaseKey) return 'free';
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=user_type`,
+      {
+        headers: {
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+      }
+    );
+    if (!res.ok) return 'free';
+    const rows: any[] = await res.json();
+    const userType: string = rows[0]?.user_type?.toLowerCase() ?? 'free';
+    // Map user_type values → tier keys
+    if (userType === 'pro' || userType === 'creator' || userType === 'paid') return 'pro';
+    if (userType === 'enterprise' || userType === 'business') return 'enterprise';
+    return 'free';
+  } catch {
+    return 'free';
+  }
+}
+
+/**
+ * Get user's cost budget based on plan tier resolved from the database.
+ */
+async function getUserBudget(userId: string, env: any): Promise<CostBudget> {
+  const plan = await getUserPlan(userId, env);
+  return BUDGET_TIERS[plan] ?? BUDGET_TIERS['free'];
 }
 
 /**
@@ -237,7 +271,7 @@ async function getUserUsage(userId: string, env: any): Promise<CostUsage> {
     const monthlyData: any[] = monthlyRes.ok ? await monthlyRes.json() : [];
     const monthlyUsed = monthlyData.reduce((sum, row) => sum + (parseFloat(row.cost_estimate_usd) || 0), 0);
 
-    const budget = getUserBudget(userId, env);
+    const budget = await getUserBudget(userId, env);
 
     return {
       dailyUsed,
