@@ -29,7 +29,7 @@ async function getOrCreateSupabaseUser(
     const { data: existingUsers, error: listError } =
       await supabaseAdmin.auth.admin.listUsers();
 
-    if (listError) {
+    if (listError || !existingUsers) {
       console.error("[NextAuth] Error listing users:", listError);
       return null;
     }
