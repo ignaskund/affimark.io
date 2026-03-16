@@ -489,7 +489,34 @@ async function generateSearchStrategies(
     }
   }
 
+  // Strategy 6: Category-anchored fallback
+  // When the product type queries are ambiguous (e.g. "sport perform" for a supplement),
+  // add a search using the inferred category as a search term.
+  // This ensures that Health & Nutrition products get queries like "nutrition supplement"
+  // instead of relying solely on the product name.
+  if (product.category && product.category !== 'General') {
+    const categoryQueries = buildCategoryFallbackQueries(product.category);
+    for (const cq of categoryQueries) {
+      if (!strategies.some(s => s.query.toLowerCase() === cq.toLowerCase())) {
+        strategies.push({ name: 'category_fallback', query: cq });
+      }
+    }
+  }
+
   return strategies;
+}
+
+function buildCategoryFallbackQueries(category: string): string[] {
+  const categoryQueryMap: Record<string, string[]> = {
+    'Health & Nutrition': ['nutrition supplement', 'sports supplement', 'health supplement'],
+    'Sports Nutrition': ['sports nutrition', 'protein supplement', 'sports drink'],
+    'Beauty & Health': ['beauty health product', 'skincare', 'personal care'],
+    'Electronics': ['electronics gadget', 'tech accessory'],
+    'Fashion': ['fashion clothing', 'apparel'],
+    'Home & Garden': ['home decor', 'household'],
+    'Sports & Outdoors': ['sports equipment', 'fitness gear'],
+  };
+  return categoryQueryMap[category] || [];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -280,7 +280,8 @@ function scoreRefundRisk(
   ];
 
   const lowRiskCategories = [
-    'electronics', 'software', 'books', 'digital', 'subscription'
+    'electronics', 'software', 'books', 'digital', 'subscription',
+    'nutrition', 'supplement', 'vitamin', 'health & nutrition', 'sports nutrition'
   ];
 
   const category = product.category?.toLowerCase() || '';
