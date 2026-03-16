@@ -188,7 +188,15 @@ export async function runAlternativeSearchAgent(
       )
     );
 
-    const passing = scored.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
+    // Hard category gate: reject products from completely wrong categories
+    // A comforter must never appear in a hair spray search. A Barbie doll must never appear for a pullover.
+    const categoryPassed = scored.filter(s => {
+      if (product.category === 'General' || !product.category) return true;
+      if (!s.category || s.category === 'General') return true;
+      return categoriesOverlap(s.category, product.category);
+    });
+
+    const passing = categoryPassed.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
     allScoredCandidates.push(...passing);
 
     const avgSem = semanticScores.size > 0
@@ -204,8 +212,14 @@ export async function runAlternativeSearchAgent(
 
     console.log(`[Agent] Search ${i + 1}: ${candidates.length} raw → ${filtered.length} new → ${semanticPassed.length} semantic → ${qualityPassed.length} quality → ${passing.length} passed (top=${passing.length > 0 ? Math.max(...passing.map(r => r.combinedScore)) : 0})`);
 
-    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 3) {
-      console.log(`[Agent] Sufficient candidates (${allScoredCandidates.length}), stopping`);
+    // Only stop early if we have enough IN-STOCK candidates
+    const inStockCount = allScoredCandidates.filter(c => c.inStock).length;
+    if (inStockCount >= MIN_QUALITY_CANDIDATES * 2) {
+      console.log(`[Agent] Sufficient in-stock candidates (${inStockCount}), stopping`);
+      break;
+    }
+    if (allScoredCandidates.length >= MIN_QUALITY_CANDIDATES * 5) {
+      console.log(`[Agent] Max candidates reached (${allScoredCandidates.length}), stopping`);
       break;
     }
   }
@@ -215,6 +229,43 @@ export async function runAlternativeSearchAgent(
 
   const deduped = deduplicateByName(allScoredCandidates);
   const diverse = enforceDiversity(deduped, TOP_K);
+
+  // ── STEP 7: Dynamic enrichment for top results ──────────────────────────
+  // Fetch actual product pages to get real ratings and review counts.
+  // This fixes the quality/reviews KPIs which otherwise show "pending enrichment".
+  if (diverse.length > 0) {
+    try {
+      const { enrichDynamic } = await import('../services/enrichment');
+      const { computeAllProductKpis, computeAllBrandKpis } = await import('../services/priority-kpi-specs');
+
+      const signals = diverse.map(d => (d as any)._enrichedSignals).filter(Boolean);
+      const urls = diverse.map(d => ({ directUrl: (d as any).directUrl, affiliateUrl: d.affiliateUrl }));
+
+      if (signals.length > 0) {
+        // Compute price percentiles across final candidates
+        const { computePricePercentiles } = await import('../services/enrichment');
+        computePricePercentiles(signals);
+
+        // Dynamic enrichment: fetch product pages for real ratings/reviews
+        await enrichDynamic(signals, urls);
+        console.log(`[Agent] Dynamic enrichment complete for ${signals.length} products`);
+
+        // Re-compute all KPIs with full enriched data
+        for (let i = 0; i < diverse.length; i++) {
+          const s = signals[i];
+          if (!s) continue;
+          diverse[i].productKpis = computeAllProductKpis(s, profile.productPriorities);
+          diverse[i].brandKpis = computeAllBrandKpis(s, profile.brandPriorities);
+          // Update comparisonToOriginal.betterForPriority1 with enriched KPI
+          if (diverse[i].productKpis[0]) {
+            diverse[i].comparisonToOriginal.betterForPriority1 = diverse[i].productKpis[0].score >= 60;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Agent] Dynamic enrichment failed (non-fatal):', e);
+    }
+  }
 
   const agentReasoning = buildAgentReasoning(product, profile, diverse, iterations);
 
@@ -295,30 +346,51 @@ async function generateProductTypeQueries(product: IdentifiedProduct, env: any):
     q.replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/[,;:!()[\]]/g, ' ').replace(/\s+/g, ' ').trim()
   ))].filter(q => q.split(/\s+/).length >= 2);
 
-  // AI distillation: produce a concise 2-3 word product-type query for Datafeedr
-  // Datafeedr searches work better with short, specific terms (e.g. "cable knit pullover")
-  if (env?.OPENAI_API_KEY && unique.length > 0) {
+  // AI distillation: produce concise ENGLISH product-type queries for Datafeedr.
+  // Handles: non-English product titles, multi-product sets, ambiguous product types.
+  const apiKey = env?.OPENAI_API_KEY;
+  if (apiKey && unique.length > 0) {
     try {
       const { aiComplete } = await import('../services/ai-client');
       const context = unique.slice(0, 3).join(' | ');
+      const categoryHint = product.category !== 'General' ? product.category : '';
+      console.log(`[Agent] AI distillation input: "${context}" (category: ${categoryHint})`);
       const distilled = await aiComplete({
-        prompt: `Product category: "${product.category}"${product.subcategory ? `, type: "${product.subcategory}"` : ''}
-Given these search queries: "${context}"
-Distill to the BEST 2-3 word product TYPE for affiliate search. Never include brand names. Must match the category.
-Examples: "cable knit pullover" (Fashion), "polarized sunglasses" (Fashion), "dry texture spray" (Beauty & Health), "wireless earbuds" (Electronics), "vitamin c serum" (Beauty & Health)
-Return ONLY the 2-3 word phrase, nothing else.`,
-        maxTokens: 20,
-        apiKey: env.OPENAI_API_KEY,
+        prompt: `You are an affiliate product search expert. Given these product descriptions:
+"${context}"
+${categoryHint ? `Product category: ${categoryHint}` : ''}
+${product.title ? `Full product name: "${product.title}"` : ''}
+
+Generate exactly 2 search queries IN ENGLISH that would find similar products in an affiliate product database.
+- Query 1: The most specific 2-4 word product type (e.g. "hyaluronic acid face serum", "air fryer", "mma sparring gloves", "merino hiking socks", "hair moisture treatment set")
+- Query 2: A broader 1-3 word product category (e.g. "face serum", "kitchen fryer", "boxing gloves", "hiking socks", "hair care set")
+
+RULES:
+- ALWAYS output in English, even if the input is in German/French/other languages
+- Never include brand names
+- For nutrition/supplement products, use terms like "sports supplement" or "protein powder", NOT "sports gear"
+- For product sets/kits, describe what's IN the set (e.g. "hair care travel kit" not just "travel set")
+
+Return ONLY two lines, nothing else:
+specific query
+broad query`,
+        maxTokens: 40,
+        apiKey,
       });
-      const phrase = distilled.trim().replace(/^["']|["']$/g, '').toLowerCase();
-      if (phrase && phrase.split(/\s+/).length >= 2 && phrase.split(/\s+/).length <= 4) {
-        // Prepend as the primary query — most concise for Datafeedr
-        console.log(`[Agent] AI distilled query: "${phrase}"`);
-        return [phrase, ...unique.filter(q => q !== phrase)];
+      const lines = distilled.trim().split('\n').map(l => l.trim().replace(/^["'\d.)\-]+\s*/, '').replace(/["']/g, '').toLowerCase()).filter(l => l.length >= 3);
+      console.log(`[Agent] AI distillation output: ${lines.map(l => `"${l}"`).join(', ')}`);
+
+      const validQueries = lines.filter(l => l.split(/\s+/).length >= 1 && l.split(/\s+/).length <= 6);
+      if (validQueries.length > 0) {
+        const merged = [...validQueries, ...unique.filter(q => !validQueries.includes(q.toLowerCase()))];
+        console.log(`[Agent] AI distilled queries accepted: ${validQueries.map(q => `"${q}"`).join(', ')}`);
+        return merged;
       }
-    } catch (e) {
-      // Non-fatal: fall through to rule-based queries
+    } catch (e: any) {
+      console.warn(`[Agent] AI distillation failed: ${e?.message || e}`);
     }
+  } else if (!apiKey) {
+    console.warn('[Agent] No OPENAI_API_KEY — skipping AI distillation');
   }
 
   return unique.length > 0 ? unique : [product.title.slice(0, 50)];
@@ -344,9 +416,10 @@ function buildBrandExclusions(product: IdentifiedProduct): string[] {
   const exclusions: string[] = [];
   if (product.brand) {
     exclusions.push(product.brand);
-    // Add individual brand words for fuzzy matching (e.g. "Kristin" and "Ess")
     const parts = product.brand.split(/\s+/).filter(w => w.length > 2);
-    if (parts.length > 1) exclusions.push(parts[0]);
+    for (const part of parts) {
+      if (!exclusions.includes(part)) exclusions.push(part);
+    }
   }
   return exclusions;
 }
@@ -399,7 +472,19 @@ async function generateSearchStrategies(
     strategies.push({ name: 'product_type', query });
   }
 
-  // Strategy 2: Product type + price range anchored to original
+  // Strategy 2: Broader single-word category search to catch in-stock products
+  // "square sunglasses" might be too narrow — also try just "sunglasses"
+  if (productTypeQueries.length > 0) {
+    const words = productTypeQueries[0].split(/\s+/);
+    if (words.length >= 2) {
+      const lastWord = words[words.length - 1];
+      if (lastWord.length >= 5) {
+        strategies.push({ name: 'broad_type', query: lastWord });
+      }
+    }
+  }
+
+  // Strategy 3: Product type + price range anchored to original
   if (product.price && productTypeQueries.length > 0) {
     strategies.push({
       name: 'price_anchored',
@@ -409,7 +494,7 @@ async function generateSearchStrategies(
     });
   }
 
-  // Strategy 3: Search within creator's preferred networks
+  // Strategy 4: Search within creator's preferred networks
   const { resolveSourceNames } = await import('../services/datafeedr-client');
   const sourceNames = resolveSourceNames(profile.storefrontContext.preferredNetworks);
   if (sourceNames.length > 0 && productTypeQueries.length > 0) {
@@ -420,7 +505,7 @@ async function generateSearchStrategies(
     });
   }
 
-  // Strategy 4: Broader category search if product type queries are narrow
+  // Strategy 5: Broader category search if product type queries are narrow
   if (product.subcategory && product.subcategory !== productTypeQueries[0]) {
     const brandTokens = extractBrandTokens(product.brand);
     const cleaned = stripBrandFromQuery(product.subcategory, brandTokens);
@@ -429,7 +514,34 @@ async function generateSearchStrategies(
     }
   }
 
+  // Strategy 6: Category-anchored fallback
+  // When the product type queries are ambiguous (e.g. "sport perform" for a supplement),
+  // add a search using the inferred category as a search term.
+  // This ensures that Health & Nutrition products get queries like "nutrition supplement"
+  // instead of relying solely on the product name.
+  if (product.category && product.category !== 'General') {
+    const categoryQueries = buildCategoryFallbackQueries(product.category);
+    for (const cq of categoryQueries) {
+      if (!strategies.some(s => s.query.toLowerCase() === cq.toLowerCase())) {
+        strategies.push({ name: 'category_fallback', query: cq });
+      }
+    }
+  }
+
   return strategies;
+}
+
+function buildCategoryFallbackQueries(category: string): string[] {
+  const categoryQueryMap: Record<string, string[]> = {
+    'Health & Nutrition': ['nutrition supplement', 'sports supplement', 'health supplement'],
+    'Sports Nutrition': ['sports nutrition', 'protein supplement', 'sports drink'],
+    'Beauty & Health': ['beauty health product', 'skincare', 'personal care'],
+    'Electronics': ['electronics gadget', 'tech accessory'],
+    'Fashion': ['fashion clothing', 'apparel'],
+    'Home & Garden': ['home decor', 'household'],
+    'Sports & Outdoors': ['sports equipment', 'fitness gear'],
+  };
+  return categoryQueryMap[category] || [];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -506,6 +618,54 @@ function enforceDiversity(candidates: ScoredAlternative[], targetSize: number): 
   }
 
   return result;
+}
+
+/**
+ * Hard category gate — checks if two categories could reasonably overlap.
+ * "Beauty > Hair Care" and "Beauty & Health" overlap. "Home > Bedding" and "Beauty" do not.
+ */
+function categoriesOverlap(candidateCategory: string, originalCategory: string): boolean {
+  const a = candidateCategory.toLowerCase();
+  const b = originalCategory.toLowerCase();
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const groups: string[][] = [
+    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance', 'face', 'body care'],
+    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'watches', 'bags', 'sunglasses', 'hosiery', 'socks', 'gloves', 'scarves'],
+    ['electronics', 'technology', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home', 'appliances', 'kitchen appliances'],
+    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor', 'household'],
+    ['sports', 'fitness', 'outdoors', 'camping', 'exercise', 'yoga', 'martial arts', 'boxing', 'mma', 'hiking', 'running', 'cycling', 'socks', 'athletic', 'sportswear'],
+    ['food', 'beverage', 'grocery', 'supplements', 'nutrition', 'vitamins', 'protein', 'health supplements', 'sports nutrition'],
+    ['toys', 'games', 'kids', 'baby', 'dolls'],
+    ['books', 'media', 'music', 'movies'],
+    ['automotive', 'car', 'vehicle'],
+    ['pets', 'dog', 'cat', 'animal'],
+  ];
+
+  for (const group of groups) {
+    const aInGroup = group.some(kw => a.includes(kw));
+    const bInGroup = group.some(kw => b.includes(kw));
+    if (aInGroup && bInGroup) return true;
+  }
+
+  // Cross-group overlaps that are valid
+  const crossLinks: [string[], string[]][] = [
+    [['sports', 'fitness', 'outdoors', 'hiking', 'athletic'], ['fashion', 'clothing', 'apparel', 'hosiery', 'socks', 'gloves', 'sportswear']],
+    [['sports', 'fitness'], ['food', 'nutrition', 'supplements', 'health']],
+    [['home', 'kitchen'], ['electronics', 'appliances']],
+    [['beauty', 'health'], ['electronics', 'devices', 'massager']],
+  ];
+
+  for (const [groupA, groupB] of crossLinks) {
+    const aInA = groupA.some(kw => a.includes(kw));
+    const bInB = groupB.some(kw => b.includes(kw));
+    const aInB = groupB.some(kw => a.includes(kw));
+    const bInA = groupA.some(kw => b.includes(kw));
+    if ((aInA && bInB) || (aInB && bInA)) return true;
+  }
+
+  return false;
 }
 
 function buildAgentReasoning(

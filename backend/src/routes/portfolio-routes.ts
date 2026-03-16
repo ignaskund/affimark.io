@@ -319,4 +319,251 @@ app.post('/audit', async (c) => {
   }
 });
 
+/**
+ * POST /api/portfolio/add-product
+ * Adds a product URL to the user's portfolio for risk analysis.
+ * Used when the onboarding scanner only captured storefront-level links.
+ */
+app.post('/add-product', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId, productUrl, title } = body;
+
+    if (!userId) return c.json({ error: 'userId is required' }, 401);
+    if (!productUrl) return c.json({ error: 'productUrl is required' }, 400);
+
+    const supabaseUrl = (c.env as any).SUPABASE_URL;
+    const supabaseKey = (c.env as any).SUPABASE_SERVICE_KEY;
+    const headers = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    // Identify the product to get title, brand, category
+    let productTitle = title || '';
+    let brand = null;
+    let category = null;
+
+    try {
+      const identified = await identifyProduct(productUrl, c.env);
+      if (identified.confidence >= 20) {
+        productTitle = productTitle || identified.title;
+        brand = identified.brand;
+        category = identified.category;
+      }
+    } catch (e) {
+      console.warn('[Portfolio] Product identification failed:', e);
+    }
+
+    // Find the user's first storefront to link to
+    const sfRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefronts?user_id=eq.${userId}&limit=1`,
+      { headers }
+    );
+    const storefronts = await sfRes.json();
+    const storefrontId = Array.isArray(storefronts) && storefronts.length > 0
+      ? storefronts[0].id : null;
+
+    // Insert into user_storefront_products
+    const insertRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefront_products`,
+      {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'return=representation' },
+        body: JSON.stringify({
+          user_id: userId,
+          storefront_id: storefrontId,
+          product_url: productUrl,
+          title: productTitle || 'Unknown Product',
+          brand,
+          category,
+          platform: 'manual',
+        }),
+      }
+    );
+
+    if (!insertRes.ok) {
+      const err = await insertRes.text();
+      console.error('[Portfolio] Insert failed:', err);
+      return c.json({ error: 'Failed to add product' }, 500);
+    }
+
+    const inserted = await insertRes.json();
+    console.log(`[Portfolio] Added product: "${productTitle}" for user ${userId}`);
+
+    return c.json({
+      success: true,
+      product: Array.isArray(inserted) ? inserted[0] : inserted,
+    });
+  } catch (error: any) {
+    console.error('[Portfolio Add] Error:', error);
+    return c.json({ error: 'Failed to add product', message: error.message }, 500);
+  }
+});
+
+/**
+ * POST /api/portfolio/scan-storefront
+ * Follows a storefront URL (e.g. urlgeni.us/amazon/SheaWhitney), discovers
+ * the actual storefront page, and extracts individual product URLs from it.
+ * Adds discovered products to user_storefront_products.
+ */
+app.post('/scan-storefront', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId, storefrontUrl } = body;
+
+    if (!userId) return c.json({ error: 'userId is required' }, 401);
+    if (!storefrontUrl) return c.json({ error: 'storefrontUrl is required' }, 400);
+
+    console.log(`[Portfolio Scan] Scanning storefront: ${storefrontUrl} for user ${userId}`);
+
+    // Step 1: Follow redirects to get the real URL
+    let resolvedUrl = storefrontUrl;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(storefrontUrl, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+      });
+      clearTimeout(timer);
+      resolvedUrl = res.url;
+      console.log(`[Portfolio Scan] Resolved: ${storefrontUrl} → ${resolvedUrl}`);
+    } catch (e) {
+      console.warn('[Portfolio Scan] URL resolution failed, using original:', e);
+    }
+
+    // Step 2: Fetch the page and extract product links
+    const productUrls: Array<{ url: string; title: string }> = [];
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const pageRes = await fetch(resolvedUrl, {
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      });
+      clearTimeout(timer);
+
+      if (pageRes.ok) {
+        const html = await pageRes.text();
+        extractAmazonProductsFromHtml(html, productUrls);
+        console.log(`[Portfolio Scan] Static scrape found ${productUrls.length} product URLs`);
+      }
+    } catch (e) {
+      console.warn('[Portfolio Scan] Static page fetch failed:', e);
+    }
+
+    // If static scrape found nothing, try Browser Rendering for JS-heavy pages
+    if (productUrls.length === 0 && (c.env as any).BROWSER) {
+      try {
+        const puppeteer = await import('@cloudflare/puppeteer');
+        const browser = await puppeteer.default.launch((c.env as any).BROWSER);
+        const page = await browser.newPage();
+        await page.goto(resolvedUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+        const html = await page.content();
+        await browser.close();
+
+        extractAmazonProductsFromHtml(html, productUrls);
+        console.log(`[Portfolio Scan] Browser Rendering found ${productUrls.length} product URLs`);
+      } catch (e: any) {
+        console.warn('[Portfolio Scan] Browser Rendering failed:', e?.message || e);
+      }
+    }
+
+    if (productUrls.length === 0) {
+      return c.json({
+        message: 'No product URLs found on this storefront page. The page may require JavaScript rendering.',
+        productsFound: 0,
+        resolvedUrl,
+      });
+    }
+
+    // Step 3: Add discovered products to user_storefront_products
+    const supabaseUrl = (c.env as any).SUPABASE_URL;
+    const supabaseKey = (c.env as any).SUPABASE_SERVICE_KEY;
+    const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' };
+
+    // Get storefront ID
+    const sfRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_storefronts?user_id=eq.${userId}&limit=1`, { headers }
+    );
+    const storefronts = await sfRes.json();
+    const storefrontId = Array.isArray(storefronts) && storefronts.length > 0 ? storefronts[0].id : null;
+
+    let added = 0;
+    for (const product of productUrls.slice(0, 50)) {
+      try {
+        // Check if already exists
+        const checkRes = await fetch(
+          `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&product_url=eq.${encodeURIComponent(product.url)}&select=id&limit=1`,
+          { headers }
+        );
+        const existing = await checkRes.json();
+        if (Array.isArray(existing) && existing.length > 0) continue;
+
+        await fetch(`${supabaseUrl}/rest/v1/user_storefront_products`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            user_id: userId,
+            storefront_id: storefrontId,
+            product_url: product.url,
+            title: product.title || 'Discovered Product',
+            platform: 'amazon',
+          }),
+        });
+        added++;
+      } catch (e) {
+        console.warn('[Portfolio Scan] Failed to add product:', e);
+      }
+    }
+
+    console.log(`[Portfolio Scan] Added ${added} new products for user ${userId}`);
+
+    return c.json({
+      message: `Discovered ${productUrls.length} products, added ${added} new ones`,
+      productsFound: productUrls.length,
+      productsAdded: added,
+      resolvedUrl,
+    });
+  } catch (error: any) {
+    console.error('[Portfolio Scan] Error:', error);
+    return c.json({ error: 'Scan failed', message: error.message }, 500);
+  }
+});
+
+function extractAmazonProductsFromHtml(html: string, productUrls: Array<{ url: string; title: string }>) {
+  const amazonPattern = /https?:\/\/(?:www\.)?amazon\.[a-z.]+\/(?:[^"'\s]*\/)?dp\/([A-Z0-9]{10})[^"'\s]*/gi;
+  const matches = html.matchAll(amazonPattern);
+  const seenAsins = new Set(productUrls.map(p => {
+    const m = p.url.match(/\/dp\/([A-Z0-9]{10})/i);
+    return m ? m[1] : '';
+  }));
+
+  for (const match of matches) {
+    const asin = match[1];
+    if (seenAsins.has(asin)) continue;
+    seenAsins.add(asin);
+    productUrls.push({ url: `https://www.amazon.com/dp/${asin}`, title: '' });
+  }
+
+  const linkPattern = /<a[^>]*href="([^"]*\/dp\/([A-Z0-9]{10})[^"]*)"[^>]*>([^<]*)</gi;
+  const linkMatches = html.matchAll(linkPattern);
+  for (const m of linkMatches) {
+    const titleText = m[3]?.trim();
+    const asin = m[2];
+    if (titleText && titleText.length > 5 && asin) {
+      const existing = productUrls.find(p => p.url.includes(asin));
+      if (existing && !existing.title) existing.title = titleText;
+    }
+  }
+}
+
 export default app;

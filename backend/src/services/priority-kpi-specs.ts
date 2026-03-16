@@ -591,8 +591,26 @@ const customerServiceSpec: PriorityKpiSpec = {
       };
     }
 
+    // Fallback: if merchant Trustpilot is missing, estimate from brand recognition tier
+    // Well-known brands generally have responsive customer service
+    if (p.brandRecognitionTier) {
+      const tierScores: Record<string, number> = {
+        'global': 75, 'major': 65, 'established': 55, 'emerging': 40, 'niche': 30,
+      };
+      const score = tierScores[p.brandRecognitionTier] || 30;
+      return {
+        score,
+        confidence: 'low' as ConfidenceLevel,
+        reason: `Estimated from ${p.brand || p.merchant} brand tier (${p.brandRecognitionTier}). No direct Trustpilot data available.`,
+        evidenceLabel: `${p.brandRecognitionTier} brand tier`,
+        evidenceSource: 'brand_tier_estimate',
+        checkedAt: now(),
+        isProxy: true,
+      };
+    }
+
     return {
-      score: 0,
+      score: 30,
       confidence: 'low',
       reason: `No Trustpilot data available for ${p.merchant || 'this merchant'}`,
       evidenceLabel: 'No Trustpilot data',

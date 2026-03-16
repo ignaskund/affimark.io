@@ -22,7 +22,10 @@ export function inferBrand(title: string): string | null {
     'the', 'a', 'an', 'new', 'best', 'top', 'great', 'nice', 'amazing',
     'set', 'pack', 'kit', 'bundle', 'gift', 'women', 'men', 'mens', 'womens',
     'hydrating', 'lip', 'balm', 'gloss', 'with', 'for', 'by', 'and',
-    'shade', 'color', 'size',
+    'shade', 'color', 'size', 'dry', 'wet', 'mini', 'pro', 'ultra',
+    'wireless', 'portable', 'organic', 'natural', 'premium', 'classic',
+    'vintage', 'retro', 'modern', 'smart', 'digital', 'professional',
+    'sport', 'perform', 'recover', 'active', 'energy', 'power',
   ]);
 
   const candidate = words[0];
@@ -49,6 +52,7 @@ export const CATEGORIES = [
   'Fashion',
   'Home & Garden',
   'Beauty & Health',
+  'Health & Nutrition',
   'Sports & Outdoors',
   'Toys & Games',
   'Books & Media',
@@ -82,14 +86,22 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
     'beauty', 'health', 'personal care', 'skin', 'makeup', 'hair', 'vitamin',
     'serum', 'moisturizer', 'lipstick', 'mascara', 'shampoo', 'conditioner',
     'perfume', 'hair spray', 'texture spray', 'skincare', 'blush', 'foundation',
-    'sunscreen', 'supplement', 'wellness',
+    'sunscreen', 'supplement', 'wellness', 'collagen', 'probiotic', 'biotin',
     // EU languages
     'schönheit', 'gesundheit', 'pflege', 'kosmetik',
     'beauté', 'santé', 'soin', 'cosmétique',
   ],
+  'Health & Nutrition': [
+    'supplement', 'nutrition', 'protein', 'mineral', 'dietary',
+    'orthomol', 'electrolyte', 'probiotic', 'omega', 'creatine', 'bcaa',
+    'magnesium', 'multivitamin', 'whey', 'casein', 'amino acid',
+    'pre workout', 'post workout', 'energy gel', 'energy bar',
+    'sport perform', 'sport recover', 'zinc', 'iron supplement',
+  ],
   'Sports & Outdoors': [
     'sports', 'outdoors', 'fitness', 'exercise', 'yoga', 'gym', 'running',
     'hiking', 'cycling', 'swimming', 'tennis', 'golf', 'skiing',
+    'sport', 'athletic', 'training',
   ],
   'Toys & Games': [
     'toys', 'games', 'lego', 'puzzle', 'doll', 'action figure', 'board game',
@@ -122,9 +134,9 @@ export function inferCategory(title: string): string {
   const lower = title.toLowerCase();
   // Check in specificity order: more specific categories first
   const ORDER: string[] = [
-    'Beauty & Health', 'Electronics', 'Fashion', 'Home & Garden',
-    'Sports & Outdoors', 'Toys & Games', 'Books & Media', 'Food & Beverage',
-    'Automotive', 'Pet Supplies',
+    'Health & Nutrition', 'Beauty & Health', 'Electronics', 'Fashion',
+    'Home & Garden', 'Sports & Outdoors', 'Toys & Games', 'Books & Media',
+    'Food & Beverage', 'Automotive', 'Pet Supplies',
   ];
   for (const cat of ORDER) {
     const keywords = CATEGORY_KEYWORDS[cat];

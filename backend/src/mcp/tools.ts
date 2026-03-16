@@ -20,6 +20,12 @@ import { inferBrand, inferCategory, mapCategory } from '../utils/product-inferen
 export async function getCreatorProfile(userId: string, env: any): Promise<CreatorProfile> {
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[MCP getCreatorProfile] Missing SUPABASE_URL or SUPABASE_SERVICE_KEY');
+    return buildEmptyProfile(userId);
+  }
+
   const headers = { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` };
 
   const [prefsRes, socialsRes, storefrontsRes, productsRes, profileRes] = await Promise.all([
@@ -30,8 +36,20 @@ export async function getCreatorProfile(userId: string, env: any): Promise<Creat
     fetch(`${supabaseUrl}/rest/v1/user_product_profiles?user_id=eq.${userId}`, { headers }),
   ]);
 
+  // Check for auth errors (any non-200 indicates bad API key or network issue)
+  for (const [name, res] of [['prefs', prefsRes], ['socials', socialsRes], ['storefronts', storefrontsRes], ['products', productsRes], ['profiles', profileRes]] as const) {
+    if (!res.ok) {
+      const errText = await (res as Response).text().catch(() => 'unknown');
+      console.error(`[MCP getCreatorProfile] Supabase ${name} query failed (${(res as Response).status}): ${errText}`);
+    }
+  }
+
   const [prefs, socials, storefronts, products, profiles] = await Promise.all([
-    prefsRes.json(), socialsRes.json(), storefrontsRes.json(), productsRes.json(), profileRes.json(),
+    prefsRes.ok ? prefsRes.json() : [],
+    socialsRes.ok ? socialsRes.json() : [],
+    storefrontsRes.ok ? storefrontsRes.json() : [],
+    productsRes.ok ? productsRes.json() : [],
+    profileRes.ok ? profileRes.json() : [],
   ]);
 
   const pref = Array.isArray(prefs) ? prefs[0] : null;
@@ -97,6 +115,28 @@ export async function getCreatorProfile(userId: string, env: any): Promise<Creat
   };
 }
 
+function buildEmptyProfile(userId: string): CreatorProfile {
+  return {
+    userId,
+    productPriorities: [],
+    brandPriorities: [],
+    socialContext: {
+      platforms: [],
+      contentCategories: [],
+      audienceDemographics: { ageRange: '', topCountries: [], interests: [] },
+      estimatedReach: 0,
+    },
+    storefrontContext: {
+      dominantCategories: [],
+      topBrands: [],
+      avgPricePoint: 0,
+      preferredNetworks: [],
+    },
+    storefrontProducts: [],
+    confidenceScore: 0,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL 2: identify_product
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -154,11 +194,31 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
       const slugCandidate = markerSlug || genericSlug;
 
       if (slugCandidate) {
-        // Convert slug to title: "song-of-style-naara-cable-crew-pullover-in-brown" → proper title
         const words = slugCandidate.split('-').filter(w => w.length > 1 && !/^\d+$/.test(w));
         const title = words.join(' ');
         if (title.length > 10 && words.length >= 3) {
           console.log(`[MCP identify_product] Generic slug extracted: "${title}" from ${parsed.hostname}`);
+          // Use AI to parse brand vs product from the slug (e.g. "song of style" is the brand, "naara cable crew pullover" is the product)
+          if (env?.OPENAI_API_KEY) {
+            try {
+              const { aiComplete, extractJson } = await import('../services/ai-client');
+              const aiResult = await aiComplete({
+                prompt: `This product slug was extracted from ${parsed.hostname}: "${title}"
+Separate the brand name from the product description.
+Return ONLY JSON: {"brand": "brand name or null", "product": "product description without brand", "category": "Fashion|Beauty & Health|Electronics|Home & Garden|Sports & Outdoors|Health & Nutrition|Sports Nutrition"}
+Note: Sports supplements, vitamins, and nutrition products should be "Health & Nutrition" or "Sports Nutrition", NOT "Sports & Outdoors".`,
+                maxTokens: 80, apiKey: env.OPENAI_API_KEY,
+              });
+              const parsed2 = extractJson(aiResult);
+              if (parsed2?.product) {
+                console.log(`[MCP identify_product] AI slug parse: brand="${parsed2.brand}", product="${parsed2.product}"`);
+                return buildIdentifiedProduct(
+                  parsed2.product, parsed2.brand || null,
+                  parsed2.category || null, null, 'USD', 'url_slug'
+                );
+              }
+            } catch (e: any) { console.warn('[MCP identify_product] AI slug parse failed:', e?.message || e); }
+          }
           return buildIdentifiedProduct(title, null, null, null, 'USD', 'url_slug');
         }
       }
@@ -166,6 +226,7 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
   }
 
   // Strategy 3: Scrape the product page (works for ANY URL)
+  let scrapeFailed = false;
   try {
     const cleanUrl = isAmazon && asinMatch ? `https://www.amazon.com/dp/${asinMatch[1]}` : url;
     const controller = new AbortController();
@@ -188,9 +249,39 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
       if (title && title.length > 10) {
         return buildIdentifiedProduct(title, null, null, price, 'USD', 'scrape');
       }
+      scrapeFailed = true;
+    } else {
+      scrapeFailed = true;
     }
   } catch (e: any) {
+    scrapeFailed = true;
     if (e?.name !== 'AbortError') console.warn('[MCP identify_product] Scrape failed:', e?.message);
+  }
+
+  // Strategy 3b: Cloudflare Browser Rendering (for JS-heavy pages)
+  // Uses the BROWSER binding to render the page with a headless browser,
+  // then extracts product info from the fully rendered HTML.
+  if (scrapeFailed && env?.BROWSER) {
+    try {
+      const puppeteer = await import('@cloudflare/puppeteer');
+      const browser = await puppeteer.default.launch(env.BROWSER);
+      const page = await browser.newPage();
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
+      const html = await page.content();
+      await browser.close();
+
+      const title = extractTitleFromHtml(html);
+      const price = extractPriceFromHtml(html);
+      if (title && title.length > 10) {
+        console.log(`[MCP identify_product] Browser Rendering extracted: "${title}" (price: ${price})`);
+        return buildIdentifiedProduct(title, null, null, price, 'USD', 'scrape');
+      }
+      console.warn('[MCP identify_product] Browser Rendering: page rendered but no title found');
+    } catch (e: any) {
+      console.warn('[MCP identify_product] Browser Rendering failed:', e?.message || e);
+    }
+  } else if (scrapeFailed && !env?.BROWSER) {
+    console.log('[MCP identify_product] No BROWSER binding — skipping Browser Rendering (local dev)');
   }
 
   // Strategy 4: AI analysis of URL structure
@@ -355,14 +446,33 @@ function extractTitleFromHtml(html: string): string | null {
 
 function extractPriceFromHtml(html: string): number | null {
   const patterns = [
-    /"price"\s*:\s*"?(\d+\.?\d*)"?/i,
-    /class="[^"]*price[^"]*"[^>]*>\s*\$?([\d,.]+)/i,
-    /itemprop="price"\s+content="(\d+\.?\d*)"/i,
+    // JSON-LD / structured data
+    /"price"\s*:\s*"?(\d+[.,]?\d*)"?/i,
+    /itemprop="price"\s+content="(\d+[.,]?\d*)"/i,
+    /"offers"[^}]*"price"\s*:\s*"?(\d+[.,]?\d*)"?/i,
+    // Meta tags (common on Shopify, European stores)
+    /property="product:price:amount"\s+content="(\d+[.,]?\d*)"/i,
+    /property="og:price:amount"\s+content="(\d+[.,]?\d*)"/i,
+    // European price formats: €29,90 or 29,90 € or EUR 29.90
+    /(\d+[.,]\d{2})\s*€/,
+    /€\s*(\d+[.,]\d{2})/,
+    /EUR\s*(\d+[.,]\d{2})/i,
+    // CSS class patterns
+    /class="[^"]*price[^"]*"[^>]*>\s*[€$£]?\s*([\d.,]+)/i,
+    /class="[^"]*product-price[^"]*"[^>]*>\s*[€$£]?\s*([\d.,]+)/i,
+    /data-price="(\d+[.,]?\d*)"/i,
   ];
   for (const pattern of patterns) {
     const match = html.match(pattern);
     if (match?.[1]) {
-      const price = parseFloat(match[1].replace(/,/g, ''));
+      // Handle European comma-as-decimal: "29,90" → 29.90
+      let priceStr = match[1];
+      if (/^\d+,\d{2}$/.test(priceStr)) {
+        priceStr = priceStr.replace(',', '.');
+      } else {
+        priceStr = priceStr.replace(/,/g, '');
+      }
+      const price = parseFloat(priceStr);
       if (price > 0 && price < 100000) return price;
     }
   }
@@ -500,8 +610,17 @@ export async function scoreCandidate(
 
   const priorityWeightedScore = Math.round(productPriorityScore * 0.65 + brandPriorityScore * 0.35);
 
-  const baseScore = semanticScore * 0.35 + priorityWeightedScore * 0.35 + feasibility.overall * 0.30;
-  const stockBonus = candidate.inStock === true ? 10 : candidate.inStock === false ? -10 : 0;
+  // Semantic similarity is the strongest signal — a product with 90% semantic match
+  // that has unknown brand data (50 priority score) is still a good result.
+  // Weight semantic higher when priority data is sparse (low-confidence enrichment).
+  const hasRichEnrichment = (signals.commissionRate !== undefined && signals.commissionRate > 0)
+    || (signals.rating !== undefined && signals.rating > 0);
+  const semWeight = hasRichEnrichment ? 0.30 : 0.40;
+  const priWeight = hasRichEnrichment ? 0.40 : 0.30;
+  const feaWeight = 0.30;
+
+  const baseScore = semanticScore * semWeight + priorityWeightedScore * priWeight + feasibility.overall * feaWeight;
+  const stockBonus = candidate.inStock === true ? 8 : candidate.inStock === false ? -5 : 0;
   const combinedScore = Math.min(100, Math.max(0, Math.round(baseScore + stockBonus)));
 
   const priceDiff = originalProduct.price && candidate.price
@@ -535,13 +654,15 @@ export async function scoreCandidate(
     warnings: feasibility.warnings || [],
     comparisonToOriginal: {
       priceDiff,
-      categoryMatch: candidate.category.toLowerCase().includes(originalProduct.category.toLowerCase()) ||
+      categoryMatch: originalProduct.category === 'General' ||
+        candidate.category.toLowerCase().includes(originalProduct.category.toLowerCase()) ||
         originalProduct.category.toLowerCase().includes(candidate.category.toLowerCase()) ||
-        originalProduct.category === 'General',
+        categoriesInSameGroup(candidate.category, originalProduct.category),
       sameBrand: !!originalProduct.brand && candidate.brand.toLowerCase().includes(originalProduct.brand.toLowerCase()),
       betterCommission: (signals.commissionRate || 0) > originalCommissionBaseline,
       betterForPriority1: productKpis[0]?.score >= 60,
     },
+    _enrichedSignals: signals,
   };
 }
 
@@ -575,4 +696,22 @@ export async function computeSemanticScores(
     }
     return scores;
   }
+}
+
+function categoriesInSameGroup(catA: string, catB: string): boolean {
+  const a = catA.toLowerCase();
+  const b = catB.toLowerCase();
+  const groups: string[][] = [
+    ['beauty', 'health', 'personal care', 'skincare', 'makeup', 'hair', 'cosmetics', 'fragrance'],
+    ['fashion', 'clothing', 'apparel', 'shoes', 'accessories', 'jewelry', 'sunglasses'],
+    ['electronics', 'audio', 'computers', 'phones', 'cameras', 'gaming', 'smart home'],
+    ['home', 'garden', 'furniture', 'kitchen', 'bedding', 'bath', 'decor'],
+    ['sports', 'fitness', 'outdoors', 'exercise'],
+  ];
+  for (const group of groups) {
+    const aIn = group.some(kw => a.includes(kw));
+    const bIn = group.some(kw => b.includes(kw));
+    if (aIn && bIn) return true;
+  }
+  return false;
 }
