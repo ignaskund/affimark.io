@@ -12,6 +12,7 @@ import { cors } from 'hono/cors';
 import { getCreatorProfile, identifyProduct } from '../mcp/tools';
 import { enrichStatic } from '../services/enrichment';
 import { scoreOutcomeFeasibility } from '../services/outcome-feasibility-scorer';
+import { checkBudget, logOperationCost } from '../services/cost-governor';
 
 const app = new Hono();
 
@@ -20,7 +21,8 @@ app.use('/*', cors({
     if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) return origin;
     const allowed = ['affimark.io', 'www.affimark.io', 'affimark-frontend.vercel.app'];
     if (origin && allowed.some(d => origin.includes(d))) return origin;
-    return origin || '*';
+    // Reject unknown browser origins; server-to-server calls without Origin still work
+    return null;
   },
   credentials: true,
 }));
@@ -40,14 +42,30 @@ app.post('/audit', async (c) => {
       return c.json({ error: 'userId is required' }, 401);
     }
 
-    console.log(`[Portfolio Audit] Starting audit for user ${userId}`);
-
+    // Verify the userId exists in the database (prevents unauthorized enumeration
+    // when the backend is called directly, bypassing the authenticated frontend proxy)
     const supabaseUrl = (c.env as any).SUPABASE_URL;
     const supabaseKey = (c.env as any).SUPABASE_SERVICE_KEY;
     const headers = {
       apikey: supabaseKey,
       Authorization: `Bearer ${supabaseKey}`,
     };
+    const userCheck = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=id`,
+      { headers }
+    );
+    const users: any[] = userCheck.ok ? await userCheck.json() : [];
+    if (!Array.isArray(users) || users.length === 0) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Check cost budget before running expensive batch scoring
+    const budgetCheck = await checkBudget(userId, 'portfolio_audit', c.env);
+    if (!budgetCheck.allowed) {
+      return c.json({ error: budgetCheck.message }, 429);
+    }
+
+    console.log(`[Portfolio Audit] Starting audit for user ${userId}`);
 
     // Load creator profile (for context — priorities, storefronts, social)
     const profile = await getCreatorProfile(userId, c.env);
@@ -201,10 +219,22 @@ app.post('/audit', async (c) => {
     const stable = analyzed.filter(p => p.verdict === 'keep').length;
     const unanalyzed = productResults.filter(p => p.verdict === 'unanalyzed').length;
 
-    // Revenue Stability Index: weighted average of all overall scores
-    const revenueStabilityIndex = analyzed.length > 0
-      ? Math.round(analyzed.reduce((sum, p) => sum + (p.riskScore || 0), 0) / analyzed.length)
-      : 0;
+    // Revenue Stability Index: revenue-weighted average of risk scores.
+    // Weight = price × commissionRate (proxy for earnings contribution).
+    // Products with unknown price/commission fall back to weight=1 (equal weight).
+    const revenueStabilityIndex = (() => {
+      if (analyzed.length === 0) return 0;
+      let weightedSum = 0;
+      let totalWeight = 0;
+      for (const p of analyzed) {
+        const price = p.price || 0;
+        const rate = p.commissionRate || 0;
+        const weight = price > 0 && rate > 0 ? price * rate : 1;
+        weightedSum += (p.riskScore || 0) * weight;
+        totalWeight += weight;
+      }
+      return Math.round(weightedSum / totalWeight);
+    })();
 
     // Merchant concentration: what % come from the top merchant/brand
     const merchantCounts: Record<string, number> = {};
@@ -261,6 +291,9 @@ app.post('/audit', async (c) => {
     const duration = Date.now() - startTime;
     console.log(`[Portfolio Audit] Complete: ${analyzed.length}/${productResults.length} analyzed in ${duration}ms`);
     console.log(`[Portfolio Audit] Stability index: ${revenueStabilityIndex} | stable: ${stable} | review: ${moderateRisk} | replace: ${highRisk}`);
+
+    // Log cost after successful audit — include product count for observability
+    await logOperationCost(userId, 'portfolio_audit', { tokensUsed: analyzed.length }, c.env);
 
     return c.json({
       portfolioSummary: {

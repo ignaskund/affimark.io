@@ -11,6 +11,7 @@ import type {
   SearchCandidate,
   ScoredAlternative,
 } from './types';
+import { inferBrand, inferCategory, mapCategory } from '../utils/product-inference';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL 1: get_creator_profile
@@ -133,16 +134,25 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
     }
   }
 
-  // Strategy 2b: Generic URL slug parser for non-Amazon JS-heavy sites (e.g. Revolve, ASOS)
-  // Works on patterns like /product-name-with-hyphens/dp/ID or /category/product-name-words/
+  // Strategy 2b: Generic URL slug parser for non-Amazon sites (e.g. Revolve, ASOS, EU shops, Shopify)
+  // Handles EU patterns (/produkt/, /produit/, /prodotto/, /producto/) and Shopify (/products/)
   if (!isAmazon) {
     try {
       const parsed = new URL(url);
       const segments = parsed.pathname.split('/').filter(Boolean);
-      // Find the longest path segment that looks like a product slug (has hyphens, not just an ID)
-      const slugCandidate = segments
+
+      // EU/Shopify-specific path markers — the product slug follows immediately after
+      const EU_PRODUCT_MARKERS = ['products', 'produkt', 'produit', 'prodotto', 'producto', 'produkte'];
+      const markerIdx = segments.findIndex(s => EU_PRODUCT_MARKERS.includes(s.toLowerCase()));
+      const markerSlug = markerIdx >= 0 ? segments[markerIdx + 1] : undefined;
+
+      // Fall back to the longest hyphenated segment that isn't a pure ID
+      const genericSlug = segments
         .filter(s => s.includes('-') && s.length > 15 && !/^[A-Z0-9-]{6,15}$/.test(s))
         .sort((a, b) => b.length - a.length)[0];
+
+      const slugCandidate = markerSlug || genericSlug;
+
       if (slugCandidate) {
         // Convert slug to title: "song-of-style-naara-cable-crew-pullover-in-brown" → proper title
         const words = slugCandidate.split('-').filter(w => w.length > 1 && !/^\d+$/.test(w));
@@ -244,6 +254,29 @@ If you can't identify it, set confidence to 0.`,
     } catch (e) { console.warn('[MCP identify_product] AI ASIN failed:', e); }
   }
 
+  // Strategy 6: Delegate to analyzeProductIntent as final fallback so both
+  // identification paths share the same core AI logic and produce consistent results.
+  try {
+    const { analyzeProductIntent } = await import('../services/product-intent-analyzer');
+    const intent = await analyzeProductIntent(url, env);
+    if (intent.confidence > 30 && intent.searchQuery) {
+      return {
+        title: intent.searchQuery,
+        brand: intent.brand || null,
+        category: intent.category || 'General',
+        subcategory: intent.subcategory || '',
+        price: null,
+        currency: 'USD',
+        keywords: intent.keywords || [],
+        searchQueries: [intent.searchQuery].filter(Boolean),
+        confidence: intent.confidence,
+        source: 'ai_url',
+      };
+    }
+  } catch (e) {
+    console.warn('[MCP identify_product] analyzeProductIntent fallback failed:', e);
+  }
+
   return {
     title: '', brand: null, category: 'General', subcategory: '',
     price: null, currency: 'USD', keywords: [], searchQueries: [],
@@ -343,45 +376,7 @@ function isGarbageTitle(title: string): boolean {
     .some(rx => rx.test(lower));
 }
 
-function inferBrand(title: string): string | null {
-  const words = title.split(/\s+/).slice(0, 2);
-  if (words.length === 0) return null;
-  const candidate = words[0];
-  if (candidate.length < 3 || /^\d/.test(candidate)) return null;
-  const generic = new Set(['the', 'a', 'set', 'pack', 'new', 'best', 'top', 'women', 'men']);
-  if (generic.has(candidate.toLowerCase())) return null;
-  return candidate;
-}
-
-function mapCategory(raw: string): string {
-  const lower = raw.toLowerCase();
-  const map: Record<string, string[]> = {
-    'Electronics': ['electronics', 'computers', 'phone', 'audio', 'headphone', 'camera', 'tv'],
-    'Fashion': ['clothing', 'shoes', 'jewelry', 'watches', 'accessories', 'apparel', 'fashion', 'sweater', 'pullover', 'dress', 'jacket'],
-    'Home & Garden': ['home', 'kitchen', 'garden', 'furniture', 'bedding', 'bath'],
-    'Beauty & Health': ['beauty', 'health', 'personal care', 'skin', 'makeup', 'hair', 'vitamin'],
-    'Sports & Outdoors': ['sports', 'outdoors', 'fitness', 'exercise'],
-  };
-  for (const [cat, kws] of Object.entries(map)) {
-    if (kws.some(k => lower.includes(k))) return cat;
-  }
-  return 'General';
-}
-
-function inferCategory(title: string): string {
-  const lower = title.toLowerCase();
-  const rules: [string, string[]][] = [
-    ['Beauty & Health', ['serum', 'moisturizer', 'lipstick', 'mascara', 'shampoo', 'conditioner', 'perfume', 'hair spray', 'texture spray', 'skincare', 'blush', 'foundation', 'sunscreen']],
-    ['Electronics', ['headphones', 'earbuds', 'speaker', 'charger', 'bluetooth', 'camera', 'laptop', 'phone']],
-    ['Fashion', ['dress', 'shirt', 'pullover', 'sweater', 'jacket', 'jeans', 'shoes', 'sneakers', 'boots', 'bag', 'handbag', 'sunglasses', 'cardigan', 'knit', 'cable crew']],
-    ['Home & Garden', ['lamp', 'candle', 'pillow', 'rug', 'vase', 'pan', 'mug', 'organizer']],
-    ['Sports & Outdoors', ['yoga', 'gym', 'fitness', 'running', 'hiking']],
-  ];
-  for (const [cat, kws] of rules) {
-    if (kws.some(kw => lower.includes(kw))) return cat;
-  }
-  return 'General';
-}
+// inferBrand, inferCategory, mapCategory are imported from '../utils/product-inference'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL 3: search_alternatives
@@ -405,8 +400,8 @@ export async function searchAlternatives(
   const secretKey = env.DATAFEEDR_SECRET_KEY;
   if (!accessId || !secretKey) return [];
 
-  const priceMinCents = options.priceMin ? Math.round(options.priceMin * 100) : undefined;
-  const priceMaxCents = options.priceMax ? Math.round(options.priceMax * 100) : undefined;
+  const priceMinCents = options.priceMin !== undefined ? Math.round(options.priceMin * 100) : undefined;
+  const priceMaxCents = options.priceMax !== undefined ? Math.round(options.priceMax * 100) : undefined;
 
   try {
     const response = await searchDatafeedr(
@@ -478,6 +473,16 @@ export async function scoreCandidate(
     description: candidate.description, directUrl: candidate.directUrl, affiliateUrl: candidate.affiliateUrl,
   });
 
+  // Derive the original product's expected commission baseline (by its category/network)
+  // so betterCommission compares against the actual baseline, not a hardcoded 3%.
+  const originalSignals = enrichStatic({
+    name: originalProduct.title, brand: originalProduct.brand || '',
+    category: originalProduct.category, price: originalProduct.price || 0,
+    currency: originalProduct.currency, affiliateNetwork: '', merchant: originalProduct.brand || '',
+    inStock: true,
+  });
+  const originalCommissionBaseline = originalSignals.commissionRate ?? 5;
+
   const productKpis = computeAllProductKpis(signals, profile.productPriorities);
   const brandKpis = computeAllBrandKpis(signals, profile.brandPriorities);
   const productPriorityScore = profile.productPriorities.length > 0
@@ -534,7 +539,7 @@ export async function scoreCandidate(
         originalProduct.category.toLowerCase().includes(candidate.category.toLowerCase()) ||
         originalProduct.category === 'General',
       sameBrand: !!originalProduct.brand && candidate.brand.toLowerCase().includes(originalProduct.brand.toLowerCase()),
-      betterCommission: (signals.commissionRate || 0) > 3,
+      betterCommission: (signals.commissionRate || 0) > originalCommissionBaseline,
       betterForPriority1: productKpis[0]?.score >= 60,
     },
   };

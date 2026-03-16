@@ -50,7 +50,9 @@ export const OPERATION_COSTS = {
   'outcome_feasibility_check': 0.002, // Per product outcome check
 
   // Portfolio operations
-  'portfolio_audit': 0.10, // Full portfolio audit (batch product scoring)
+  // Estimate covers identifyProduct AI calls (~$0.005/product) + enrichment/scoring overhead.
+  // Actual cost scales with portfolio size; this covers ~20 products at ≈$0.005 each.
+  'portfolio_audit': 0.50, // Full portfolio audit (batch product scoring, up to ~100 products)
 } as const;
 
 type OperationType = keyof typeof OPERATION_COSTS;

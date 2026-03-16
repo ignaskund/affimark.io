@@ -181,9 +181,28 @@ function resolveRecognition(brand: string): { tier: RecognitionTier; source: str
   return { tier: 'niche', source: 'Not found in brand rankings' };
 }
 
+/**
+ * Check whether a brand name matches a dictionary key using the same
+ * word-boundary logic as matchesSet — prevents "or" matching "loreal",
+ * "c" matching "cerave", etc. Exact match always wins; substring match
+ * only allowed when the shorter string is ≥4 chars and sits on a
+ * word boundary (space, hyphen, or string edge).
+ */
+function matchesBrandKey(brand: string, key: string): boolean {
+  if (brand === key) return true;
+  const shorter = brand.length <= key.length ? brand : key;
+  const longer  = brand.length <= key.length ? key   : brand;
+  if (shorter.length >= 4) {
+    const escaped = shorter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordBoundary = new RegExp(`(^|[\\s-])${escaped}([\\s-]|$)`);
+    if (wordBoundary.test(longer)) return true;
+  }
+  return false;
+}
+
 function findSustainabilityCerts(brand: string): { certs: string[]; source: string } {
   for (const [key, certs] of Object.entries(BRAND_SUSTAINABILITY)) {
-    if (brand.includes(key) || key.includes(brand)) {
+    if (matchesBrandKey(brand, key)) {
       return { certs, source: 'B Corp directory / certification registries' };
     }
   }
@@ -192,7 +211,7 @@ function findSustainabilityCerts(brand: string): { certs: string[]; source: stri
 
 function findDesignAwards(brand: string): { awards: string[]; source: string } {
   for (const [key, awards] of Object.entries(BRAND_DESIGN_AWARDS)) {
-    if (brand.includes(key) || key.includes(brand)) {
+    if (matchesBrandKey(brand, key)) {
       return { awards, source: 'Red Dot / iF / Good Design / IDEA archives' };
     }
   }
@@ -200,9 +219,21 @@ function findDesignAwards(brand: string): { awards: string[]; source: string } {
 }
 
 function matchesSet(brand: string, set: Set<string>): boolean {
+  const b = brand.toLowerCase();
   if (set.has(brand)) return true;
   for (const entry of set) {
-    if (brand.includes(entry) || entry.includes(brand)) return true;
+    const e = entry.toLowerCase();
+    // Exact match (case-insensitive)
+    if (b === e) return true;
+    // Only allow substring match when the shorter string is ≥4 chars AND
+    // appears as a whole word (bounded by space, hyphen, or string edge).
+    // This prevents "On" matching "Avon", "Canon", "Panasonic".
+    const shorter = b.length <= e.length ? b : e;
+    const longer = b.length <= e.length ? e : b;
+    if (shorter.length >= 4) {
+      const wordBoundary = new RegExp(`(^|[\\s-])${shorter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s-]|$)`);
+      if (wordBoundary.test(longer)) return true;
+    }
   }
   return false;
 }
