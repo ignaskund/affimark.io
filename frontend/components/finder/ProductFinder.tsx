@@ -128,7 +128,7 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
               <div className="flex items-center gap-2 flex-shrink-0">
                 {finder.lastSearchInput && (
                   <button
-                    onClick={() => { finder.clearError(); finder.search(finder.lastSearchInput); }}
+                    onClick={() => { finder.clearError(); finder.search(finder.lastSearchInput, finder.lastSearchInput.startsWith('http') ? 'url' : 'category'); }}
                     className="text-xs text-red-300 hover:text-red-100 underline"
                   >
                     Retry
