@@ -137,22 +137,30 @@ async function getExistingProfile(userId: string, env: any): Promise<UserProfile
 
   if (!result) return null;
 
+  function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+    if (!value) return fallback;
+    try { return JSON.parse(value) as T; } catch {
+      console.warn('[ProfileBuilder] Failed to parse JSON:', String(value).substring(0, 50));
+      return fallback;
+    }
+  }
+
   // Reconstruct profile from DB
   return {
     userId: result.user_id,
-    productPriorities: JSON.parse(result.product_priorities || '[]'),
-    brandPriorities: JSON.parse(result.brand_priorities || '[]'),
+    productPriorities: safeJsonParse(result.product_priorities, []),
+    brandPriorities: safeJsonParse(result.brand_priorities, []),
     socialContext: {
-      platforms: JSON.parse(result.social_platforms || '[]'),
-      contentCategories: JSON.parse(result.content_categories || '[]'),
-      audienceDemographics: JSON.parse(result.audience_demographics || '{}'),
+      platforms: safeJsonParse(result.social_platforms, [] as string[]),
+      contentCategories: safeJsonParse(result.content_categories, [] as string[]),
+      audienceDemographics: safeJsonParse(result.audience_demographics, { ageRange: '', topCountries: [] as string[], interests: [] as string[] }),
       estimatedReach: result.estimated_reach || 0,
     },
     storefrontContext: {
-      dominantCategories: JSON.parse(result.dominant_categories || '[]'),
-      topBrands: JSON.parse(result.top_brands || '[]'),
+      dominantCategories: safeJsonParse(result.dominant_categories, [] as Array<{ category: string; percentage: number; avgCommission: number }>),
+      topBrands: safeJsonParse(result.top_brands, [] as string[]),
       avgPricePoint: result.avg_price_point || 0,
-      preferredNetworks: JSON.parse(result.preferred_networks || '[]'),
+      preferredNetworks: safeJsonParse(result.preferred_networks, [] as string[]),
     },
     profileLastUpdated: result.updated_at,
     socialLastAnalyzed: result.last_social_analysis,

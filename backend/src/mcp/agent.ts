@@ -195,11 +195,12 @@ async function runAlternativeSearchAgentInternal(
     let semanticScores = await computeSemanticScores(semanticQueryText, filtered, env);
 
     if (semanticScores.size === 0) {
-      const { keywordOverlapScore } = await import('../services/semantic-ranker');
       semanticScores = new Map();
-      const intent = { searchQuery: semanticQueryText, keywords: product.keywords };
+      const keywords = (product.keywords || semanticQueryText.split(' ')) as string[];
       for (const c of filtered) {
-        semanticScores.set(c.id, keywordOverlapScore(intent, { name: c.name, brand: c.brand, category: c.category, description: c.description }));
+        const text = `${c.name || ''} ${c.brand || ''} ${c.category || ''} ${c.description || ''}`.toLowerCase();
+        const matches = keywords.filter((kw: string) => text.includes(kw.toLowerCase())).length;
+        semanticScores.set(c.id, keywords.length > 0 ? Math.round((matches / keywords.length) * 100) : 50);
       }
     }
 

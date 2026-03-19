@@ -75,6 +75,11 @@ app.post('/audit', async (c) => {
       `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=id,title,brand,category,current_price,platform,product_url&limit=200`,
       { headers }
     );
+    if (!productsRes.ok) {
+      const errText = await productsRes.text().catch(() => 'unknown');
+      console.error(`[Portfolio Audit] Supabase products query failed (${productsRes.status}): ${errText}`);
+      return c.json({ error: 'Failed to fetch products', details: errText }, 502);
+    }
     const products: any[] = await productsRes.json();
 
     if (!Array.isArray(products) || products.length === 0) {
