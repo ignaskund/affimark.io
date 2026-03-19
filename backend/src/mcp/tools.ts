@@ -13,6 +13,14 @@ import type {
 } from './types';
 import { inferBrand, inferCategory, mapCategory } from '../utils/product-inference';
 
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  if (!value) return fallback;
+  try { return JSON.parse(value) as T; } catch {
+    console.warn('[MCP tools] Failed to parse JSON:', String(value).substring(0, 50));
+    return fallback;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOL 1: get_creator_profile
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -93,8 +101,8 @@ export async function getCreatorProfile(userId: string, env: any): Promise<Creat
     brandPriorities: pref?.brand_priorities || [],
     socialContext: {
       platforms: socialList.map((s: any) => s.platform),
-      contentCategories: profile ? JSON.parse(profile.content_categories || '[]') : [],
-      audienceDemographics: profile ? JSON.parse(profile.audience_demographics || '{}') : { ageRange: '', topCountries: [], interests: [] },
+      contentCategories: profile ? safeJsonParse(profile.content_categories, [] as string[]) : [],
+      audienceDemographics: profile ? safeJsonParse(profile.audience_demographics, { ageRange: '', topCountries: [] as string[], interests: [] as string[] }) : { ageRange: '', topCountries: [], interests: [] },
       estimatedReach: profile?.estimated_reach || 0,
     },
     storefrontContext: {
@@ -591,7 +599,14 @@ export async function scoreCandidate(
   const { enrichStatic } = await import('../services/enrichment');
   const { computeAllProductKpis, computeAllBrandKpis, computeWeightedPriorityScore } = await import('../services/priority-kpi-specs');
   const { scoreOutcomeFeasibility, canRecommendProduct } = await import('../services/outcome-feasibility-scorer');
-  const { generateReasonCodes } = await import('../services/reason-code-engine');
+  const generateReasonCodes = (product: any, _ctx: any) => {
+    const codes: Array<{ code: string }> = [];
+    if ((product.commissionRate || 0) > 5) codes.push({ code: 'high_commission' });
+    if ((product.rating || 0) >= 4.5) codes.push({ code: 'top_rated' });
+    if (product.inStock === true) codes.push({ code: 'in_stock' });
+    if ((product.cookieDurationDays || 0) >= 30) codes.push({ code: 'long_cookie' });
+    return { codes, summary: codes.map((c: { code: string }) => c.code.replace(/_/g, ' ')).join(', ') || 'alternative product' };
+  };
 
   const signals = enrichStatic({
     name: candidate.name, brand: candidate.brand, category: candidate.category,
@@ -666,7 +681,7 @@ export async function scoreCandidate(
     priorityWeightedScore,
     outcomeFeasibility: feasibility.overall,
     combinedScore,
-    reasonCodes: reasons.codes.map(c => c.code),
+    reasonCodes: reasons.codes.map((c: { code: string }) => c.code),
     reasonSummary: reasons.summary,
     warnings: feasibility.warnings || [],
     comparisonToOriginal: {
@@ -695,20 +710,34 @@ export async function computeSemanticScores(
   if (!apiKey || candidates.length === 0) return new Map();
 
   try {
-    const { semanticRerank } = await import('../services/semantic-ranker');
-    return await semanticRerank(
-      { searchQuery: queryText, category: undefined, subcategory: undefined, keywords: queryText.split(' '), brand: undefined },
-      candidates,
-      apiKey,
-      Math.min(candidates.length, 150)
-    );
-  } catch (e) {
-    console.warn('[MCP compute_semantic_scores] Failed:', e);
-    const { keywordOverlapScore } = await import('../services/semantic-ranker');
+    // Use OpenAI embeddings for semantic reranking
+    const OpenAI = (await import('openai')).default;
+    const client = new OpenAI({ apiKey });
+    const texts = candidates.map(c => `${c.name} ${c.brand || ''} ${c.category || ''}`.trim());
+    const [queryEmb, ...candidateEmbs] = await Promise.all([
+      client.embeddings.create({ model: 'text-embedding-3-small', input: queryText }).then(r => r.data[0].embedding),
+      ...texts.map(t => client.embeddings.create({ model: 'text-embedding-3-small', input: t }).then(r => r.data[0].embedding)),
+    ]);
     const scores = new Map<string, number>();
-    const intent = { searchQuery: queryText, keywords: queryText.split(' ') };
+    const cosineSim = (a: number[], b: number[]) => {
+      const dot = a.reduce((s, v, i) => s + v * b[i], 0);
+      const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+      const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
+      return na && nb ? dot / (na * nb) : 0;
+    };
+    candidates.forEach((c, i) => {
+      const sim = cosineSim(queryEmb, candidateEmbs[i]);
+      scores.set(c.id, Math.round(((sim + 1) / 2) * 100));
+    });
+    return scores;
+  } catch (e) {
+    console.warn('[MCP compute_semantic_scores] Embedding failed, using keyword fallback:', e);
+    const scores = new Map<string, number>();
+    const keywords = queryText.split(' ');
     for (const c of candidates) {
-      scores.set(c.id, keywordOverlapScore(intent, c));
+      const text = `${c.name || ''} ${c.brand || ''} ${c.category || ''} ${c.description || ''}`.toLowerCase();
+      const matches = keywords.filter((kw: string) => text.includes(kw.toLowerCase())).length;
+      scores.set(c.id, keywords.length > 0 ? Math.round((matches / keywords.length) * 100) : 50);
     }
     return scores;
   }

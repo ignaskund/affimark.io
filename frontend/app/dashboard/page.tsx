@@ -1,14 +1,11 @@
 import { supabaseServer } from '@/lib/supabase-server'; // Admin client
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import RevenueHeroWidget from '@/components/dashboard/RevenueHeroWidget';
 import QuickActionsGrid from '@/components/dashboard/QuickActionsGrid';
-import UpliftAlert from '@/components/dashboard/UpliftAlert';
-import InsightsPanel from '@/components/dashboard/InsightsPanel';
 import StorefrontBreakdownCard from '@/components/dashboard/StorefrontBreakdownCard';
 import PortfolioHealthCard from '@/components/dashboard/PortfolioHealthCard';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, ArrowRight, Clock, Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,28 +17,18 @@ export default async function DashboardPage() {
     redirect('/sign-in');
   }
 
-  // Use Admin client directly since we are using NextAuth and trust the session
   const supabase = supabaseServer;
 
   // Fetch user profile to check onboarding status
   const { data: profile } = await supabase
     .from('profiles')
-    .select('user_type, onboarding_completed')
+    .select('onboarding_completed')
     .eq('id', user.id)
     .single();
 
-  // If onboarding not completed, redirect to magic onboarding
   if (!profile?.onboarding_completed) {
     redirect('/onboarding/magic');
   }
-
-  // Get date ranges
-  const today = new Date();
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(today.getDate() - 30);
-
-  const sixtyDaysAgo = new Date(today);
-  sixtyDaysAgo.setDate(today.getDate() - 60);
 
   // Platform display configuration
   const platformConfig: Record<string, { displayName: string; icon: string }> = {
@@ -49,95 +36,37 @@ export default async function DashboardPage() {
     ltk: { displayName: 'LTK', icon: '💄' },
     shopmy: { displayName: 'ShopMy', icon: '🛒' },
     awin: { displayName: 'Awin', icon: '🔗' },
+    affiliate: { displayName: 'Affiliate', icon: '🔗' },
   };
 
-  // Parallelize all independent database queries
   const [
-    { data: userPreferences },
-    { data: currentPeriodEarnings },
-    { data: growthData },
     { data: importedStorefronts },
-    { count: issuesCount },
-    { data: optimizationSuggestions, count: suggestionsCount },
-    { count: resolvedCount },
-    { count: accountsCount },
     { count: storefrontCount }
   ] = await Promise.all([
-    // Fetch user preferences for currency
-    supabase
-      .from('user_creator_preferences')
-      .select('home_currency')
-      .eq('user_id', user.id)
-      .single(),
-
-    // Fetch earnings data
-    supabase.rpc('get_total_earnings', {
-      p_user_id: user.id,
-      p_start_date: thirtyDaysAgo.toISOString().split('T')[0],
-      p_end_date: today.toISOString().split('T')[0],
-    }),
-
-    supabase.rpc('get_earnings_growth', {
-      p_user_id: user.id,
-    }),
-
-    // Fetch imported storefronts from user_storefronts table
     supabase
       .from('user_storefronts')
       .select('id, platform, display_name, icon, storefront_url, sync_status, last_synced_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
 
-    // Fetch open issues count
-    supabase
-      .from('link_health_issues')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('status', 'open'),
-
-    // Fetch pending optimization suggestions
-    supabase
-      .from('link_optimizations')
-      .select('potential_gain_low, potential_gain_high', { count: 'exact' })
-      .eq('user_id', user.id)
-      .eq('status', 'pending'),
-
-    // Fetch completed actions (revenue protected simulation)
-    supabase
-      .from('link_audit_actions')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('status', 'completed')
-      .gte('completed_at', thirtyDaysAgo.toISOString()),
-
-    // Check connected accounts count (for earnings tracking)
-    supabase
-      .from('connected_accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('is_active', true),
-
-    // Check imported storefronts count
     supabase
       .from('user_storefronts')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', user.id),
   ]);
 
-  // Get product counts and top products for each storefront
+  // Get product counts for each storefront
   const storefrontIds = (importedStorefronts || []).map(s => s.id);
   let productCounts: Record<string, number> = {};
   let storefrontProducts: Record<string, any[]> = {};
 
   if (storefrontIds.length > 0) {
-    // Get all products for these storefronts
     const { data: allProducts } = await supabase
       .from('user_storefront_products')
       .select('storefront_id, title, image_url, current_price')
       .in('storefront_id', storefrontIds)
       .order('created_at', { ascending: false });
 
-    // Group products by storefront
     (allProducts || []).forEach(p => {
       productCounts[p.storefront_id] = (productCounts[p.storefront_id] || 0) + 1;
       if (!storefrontProducts[p.storefront_id]) {
@@ -147,17 +76,16 @@ export default async function DashboardPage() {
         storefrontProducts[p.storefront_id].push({
           title: p.title,
           imageUrl: p.image_url,
-          price: p.current_price ? `€${p.current_price.toFixed(2)}` : null,
+          price: p.current_price ? `€${parseFloat(p.current_price).toFixed(2)}` : null,
         });
       }
     });
   }
 
-  // Transform storefronts data for the component
   const formattedStorefronts = (importedStorefronts || []).map(s => {
     const config = platformConfig[s.platform] || {
       displayName: s.display_name || s.platform,
-      icon: s.icon || '🔗'
+      icon: s.icon || '🔗',
     };
     return {
       id: s.id,
@@ -173,23 +101,7 @@ export default async function DashboardPage() {
   });
 
   const totalProducts = Object.values(productCounts).reduce((sum, count) => sum + count, 0);
-
-  const currency = userPreferences?.home_currency || 'EUR';
-
-  // Calculate potential uplift
-  const potentialUplift = optimizationSuggestions?.reduce(
-    (sum, s) => sum + ((s.potential_gain_low || 0) + (s.potential_gain_high || 0)) / 2,
-    0
-  ) || 0;
-
-  // Simulate revenue protected (in real app, sum from loss ledger)
-  const revenueProtected = (resolvedCount || 0) * 42; // Average €42 per resolved issue
-
-  const totalEarnings = currentPeriodEarnings?.[0]?.total_commission_eur || 0;
-  const growthRate = growthData?.[0]?.growth_rate || 0;
-
-  // Check if new user (no connected accounts AND no imported storefronts)
-  const isNewUser = (accountsCount || 0) === 0 && (storefrontCount || 0) === 0;
+  const isNewUser = (storefrontCount || 0) === 0;
 
   // New user welcome screen
   if (isNewUser) {
@@ -197,14 +109,14 @@ export default async function DashboardPage() {
       <div className="max-w-4xl mx-auto">
         <div className="text-center py-16 animate-fade-in">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 mb-8 shadow-lg shadow-indigo-500/30">
-            <Sparkles className="w-10 h-10 text-white" />
+            <ShieldCheck className="w-10 h-10 text-white" />
           </div>
 
           <h1 className="text-4xl font-bold text-foreground mb-4">
             Welcome to AffiMark
           </h1>
           <p className="text-xl text-muted-foreground mb-12 max-w-lg mx-auto">
-            Let&apos;s set up your revenue HQ in under 2 minutes
+            Import your storefront to run your first Portfolio Risk Audit
           </p>
 
           <div className="grid gap-4 max-w-md mx-auto mb-12">
@@ -216,35 +128,24 @@ export default async function DashboardPage() {
               Import from Linktree / Beacons
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
-
-            <Link
-              href="/dashboard/storefronts"
-              className="btn-secondary py-4"
-            >
-              Upload CSV Manually
-            </Link>
           </div>
 
           <div className="glass-card p-6 max-w-md mx-auto">
             <p className="text-sm text-muted-foreground mb-3">
-              What you&apos;ll get access to:
+              What you&apos;ll unlock:
             </p>
             <ul className="text-sm text-left space-y-2">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Unified earnings across all platforms</span>
+              <li className="flex items-center gap-2 text-foreground">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Portfolio Risk Audit — score every product</span>
               </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Smart link optimization suggestions</span>
+              <li className="flex items-center gap-2 text-foreground">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Find better-commission alternatives</span>
               </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Broken link detection & auto-fix</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>One-click tax export with EU presets</span>
+              <li className="flex items-center gap-2 text-foreground">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span>Identify fragile revenue before it breaks</span>
               </li>
             </ul>
           </div>
@@ -259,27 +160,9 @@ export default async function DashboardPage() {
       <div className="animate-fade-in">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Your creator revenue at a glance
+          Your affiliate revenue risk intelligence
         </p>
       </div>
-
-      {/* Uplift Alert (if suggestions available) */}
-      {potentialUplift > 0 && (
-        <UpliftAlert
-          potentialUplift={potentialUplift}
-          linkCount={suggestionsCount || 0}
-          currency={currency}
-        />
-      )}
-
-      {/* Revenue Hero Widget */}
-      <RevenueHeroWidget
-        totalEarnings={totalEarnings}
-        growthRate={growthRate}
-        revenueProtected={revenueProtected}
-        potentialUplift={potentialUplift}
-        currency={currency}
-      />
 
       {/* Quick Actions */}
       <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
@@ -291,68 +174,35 @@ export default async function DashboardPage() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-        {/* Left Column - Storefronts */}
+        {/* Left Column */}
         <div className="lg:col-span-2 space-y-8">
           <StorefrontBreakdownCard
             storefronts={formattedStorefronts}
             totalProducts={totalProducts}
           />
-          {/* Portfolio Health Summary */}
           <PortfolioHealthCard />
         </div>
 
-        {/* Right Column - Insights */}
-        <div>
-          <InsightsPanel
-            topProduct={undefined}
-            urgentIssues={issuesCount || 0}
-            weeklyTrend={growthRate}
-          />
-        </div>
-      </div>
-
-      {/* Issues Summary (if any) */}
-      {(issuesCount || 0) > 0 && (
-        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-amber-400" />
+        {/* Right Column — Audit CTA */}
+        <div className="space-y-6">
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
               </div>
-              <div>
-                <p className="font-semibold text-foreground">
-                  {issuesCount} issue{issuesCount !== 1 ? 's' : ''} need{issuesCount === 1 ? 's' : ''} attention
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Click to review and resolve link health issues
-                </p>
-              </div>
+              <h3 className="font-semibold text-foreground">Portfolio Audit</h3>
             </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Score every product for revenue risk. Identify what to replace before it costs you.
+            </p>
             <Link
-              href="/dashboard/revenue-loss"
-              className="btn-secondary text-sm"
+              href="/dashboard/portfolio-audit"
+              className="btn-primary w-full text-sm group"
             >
-              View Issues
-              <ArrowRight className="w-4 h-4" />
+              Run Audit
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
-        </div>
-      )}
-
-      {/* Recent Activity */}
-      <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-indigo-400" />
-            </div>
-            <h3 className="font-semibold text-foreground">Recent Activity</h3>
-          </div>
-        </div>
-
-        <div className="text-center py-8 text-muted-foreground">
-          <p>Activity feed coming soon</p>
-          <p className="text-sm mt-1">Track imports, link changes, and earnings updates</p>
         </div>
       </div>
     </div>

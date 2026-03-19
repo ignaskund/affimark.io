@@ -32,10 +32,48 @@ import {
   type EnrichedProductSignals,
 } from './priority-kpi-specs';
 import { enrichStatic, computePricePercentiles, enrichDynamic } from './enrichment';
-import { checkEligibility } from './storefront-eligibility';
-import { selectDiverseProducts } from './diversity-selector';
-import { generateReasonCodes } from './reason-code-engine';
-import { semanticRerank, keywordOverlapScore } from './semantic-ranker';
+// Inline replacements for deleted services
+function checkEligibility(product: any, userProfile: any): { eligible: boolean; reason: string } {
+  const preferred = userProfile?.storefrontContext?.preferredNetworks as string[] | undefined;
+  if (!preferred || preferred.length === 0) return { eligible: true, reason: '' };
+  const network = (product.affiliateNetwork || product.merchant || '').toLowerCase();
+  const match = preferred.some((n: string) => network.includes(n.toLowerCase()) || n.toLowerCase().includes(network));
+  return match ? { eligible: true, reason: '' } : { eligible: false, reason: `Network not in user's preferred list` };
+}
+
+function selectDiverseProducts(products: any[], options: { targetSize: number; maxPerMerchant: number; minUniqueBrands: number; topPriorityIds: string[] }): any[] {
+  const selected: any[] = [];
+  const merchantCounts: Record<string, number> = {};
+  for (const p of products) {
+    const merchant = (p.merchant || p.brand || 'unknown').toLowerCase();
+    if ((merchantCounts[merchant] || 0) >= options.maxPerMerchant) continue;
+    merchantCounts[merchant] = (merchantCounts[merchant] || 0) + 1;
+    selected.push(p);
+    if (selected.length >= options.targetSize) break;
+  }
+  return selected;
+}
+
+function generateReasonCodes(product: any, _context: any): { codes: Array<{ code: string }>; summary: string } {
+  const codes: Array<{ code: string }> = [];
+  if ((product.commissionRate || 0) > 5) codes.push({ code: 'high_commission' });
+  if ((product.rating || 0) >= 4.5) codes.push({ code: 'top_rated' });
+  if (product.inStock === true) codes.push({ code: 'in_stock' });
+  if ((product.cookieDurationDays || 0) >= 30) codes.push({ code: 'long_cookie' });
+  return { codes, summary: codes.map((c: { code: string }) => c.code.replace(/_/g, ' ')).join(', ') || 'alternative product' };
+}
+
+function keywordOverlapScore(intent: any, candidate: any): number {
+  const text = `${candidate.name || ''} ${candidate.brand || ''} ${candidate.category || ''} ${candidate.description || ''}`.toLowerCase();
+  const keywords: string[] = (intent.keywords || intent.searchQuery?.split(' ') || []);
+  if (keywords.length === 0) return 50;
+  const matches = keywords.filter((kw: string) => text.includes(kw.toLowerCase())).length;
+  return Math.round((matches / keywords.length) * 100);
+}
+
+function semanticRerank(_intent: any, _candidates: any[], _apiKey: string, _limit: number): Promise<Map<string, number>> {
+  return Promise.reject(new Error('semanticRerank not available — use keywordOverlapScore fallback'));
+}
 
 /**
  * Category alias groups for fuzzy category matching.
@@ -390,7 +428,7 @@ export async function searchAllNetworks(
       requiresVerification: outcomeFeasibilityScore.requiresVerification,
       outcomeWarnings: outcomeFeasibilityScore.warnings,
       recommendationConfidence: outcomeFeasibilityScore.confidence,
-      reasonCodes: reasons.codes.map(c => c.code),
+      reasonCodes: reasons.codes.map((c: { code: string }) => c.code),
       reasonSummary: reasons.summary,
       _outcomeFeasibilityDetails: outcomeFeasibilityScore,
       _enrichedSignals: signals,
@@ -472,12 +510,12 @@ export async function searchAllNetworks(
     topPriorityIds,
   });
 
-  console.log(`[Multi-Network] Diversity selection: ${filtered.length} → ${diverse.length} (brands: ${new Set(diverse.map(d => d.brand?.toLowerCase())).size})`);
+  console.log(`[Multi-Network] Diversity selection: ${filtered.length} → ${diverse.length} (brands: ${new Set(diverse.map((d: any) => d.brand?.toLowerCase())).size})`);
 
   // Phase 6: DYNAMIC ENRICHMENT (product page fetch for top results only)
   try {
-    const enrichedSignalsForTop = diverse.map(d => d._enrichedSignals as EnrichedProductSignals).filter(Boolean);
-    const urls = diverse.map(d => ({ directUrl: d.directUrl, affiliateUrl: d.url }));
+    const enrichedSignalsForTop = diverse.map((d: any) => d._enrichedSignals as EnrichedProductSignals).filter(Boolean);
+    const urls = diverse.map((d: any) => ({ directUrl: d.directUrl, affiliateUrl: d.url }));
 
     if (enrichedSignalsForTop.length > 0) {
       await enrichDynamic(enrichedSignalsForTop, urls);
