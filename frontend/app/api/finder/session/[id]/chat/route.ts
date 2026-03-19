@@ -170,53 +170,10 @@ export async function POST(
       }
     }
 
-    // Fallback: Use local agent implementation
-    const { generateAgentResponse } = await import('@/lib/context-aware-agent-client');
-
-    const assistantContent = await generateAgentResponse(
-      body.message,
-      currentMessages.filter((m: any) => m.role === 'user' || m.role === 'assistant'),
-      {
-        productPriorities,
-        brandPriorities,
-        activeContext,
-        socialContext,
-        storefrontContext,
-        dynamicIntent: dynamicIntentSnapshot,
-        currentProduct: body.productContext,
-      }
+    return NextResponse.json(
+      { error: 'Chat service temporarily unavailable' },
+      { status: 503 }
     );
-
-    // Add messages
-    const userMessage = {
-      id: `msg-${Date.now()}-user`,
-      role: 'user' as const,
-      content: body.message,
-      timestamp: new Date().toISOString(),
-      context: body.productId ? { productId: body.productId } : undefined,
-    };
-
-    const assistantMessage = {
-      id: `msg-${Date.now()}-assistant`,
-      role: 'assistant' as const,
-      content: assistantContent,
-      timestamp: new Date().toISOString(),
-    };
-
-    const updatedMessages = [...currentMessages, userMessage, assistantMessage];
-
-    await supabase
-      .from('product_finder_sessions')
-      .update({
-        chat_messages: updatedMessages,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
-
-    return NextResponse.json({
-      message: assistantMessage,
-      messages: updatedMessages,
-    });
   } catch (error) {
     console.error('[Finder Chat] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

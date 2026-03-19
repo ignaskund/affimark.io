@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
                                     perPage: 1000,  // Get first 1000 users
                                 });
 
-                                const existingUser = usersData?.users?.find(u => u.email === userEmail);
+                                const existingUser = (usersData?.users as any[])?.find(u => u.email === userEmail);
                                 if (existingUser) {
                                     effectiveUserId = existingUser.id;
                                     console.log(`[Migration Apply] Found existing auth user via listUsers: ${effectiveUserId}`);

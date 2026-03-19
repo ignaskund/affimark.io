@@ -62,7 +62,7 @@ export function EmptyState({
                 <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     {action && (
                         <Button
-                            variant="primary"
+                            variant="default"
                             onClick={action.onClick}
                             {...(action.href && { as: 'a', href: action.href })}
                         >

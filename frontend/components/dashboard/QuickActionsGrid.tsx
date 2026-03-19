@@ -30,7 +30,7 @@ const quickActions: QuickAction[] = [
         icon: <Settings className="w-5 h-5" />,
         label: 'Edit Priorities',
         description: 'Update your product & brand priorities',
-        href: '/dashboard/settings',
+        href: '/settings',
         color: 'bg-purple-500/20 text-purple-400',
     },
 ];

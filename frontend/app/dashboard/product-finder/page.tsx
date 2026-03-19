@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 interface ProductFinderPageProps {
-  searchParams: { url?: string };
+  searchParams: Promise<{ url?: string }>;
 }
 
 export default async function ProductFinderPage({ searchParams }: ProductFinderPageProps) {
@@ -21,7 +21,8 @@ export default async function ProductFinderPage({ searchParams }: ProductFinderP
     redirect('/sign-in');
   }
 
-  const prefillUrl = searchParams?.url || undefined;
+  const resolvedParams = await searchParams;
+  const prefillUrl = resolvedParams?.url || undefined;
 
   return (
     <div className="h-[calc(100vh-4rem)]">
