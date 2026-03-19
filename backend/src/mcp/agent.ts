@@ -25,6 +25,7 @@ import type {
   SearchIteration,
   AgentSearchResult,
 } from './types';
+import type { Env } from '../index';
 import {
   getCreatorProfile,
   identifyProduct,
@@ -48,7 +49,7 @@ const AGENT_TIMEOUT_MS = 45000;
 export async function runAlternativeSearchAgent(
   productUrl: string,
   userId: string,
-  env: any,
+  env: Env,
 ): Promise<AgentSearchResult> {
   return Promise.race([
     runAlternativeSearchAgentInternal(productUrl, userId, env),
@@ -61,7 +62,7 @@ export async function runAlternativeSearchAgent(
 async function runAlternativeSearchAgentInternal(
   productUrl: string,
   userId: string,
-  env: any,
+  env: Env,
 ): Promise<AgentSearchResult> {
   const startTime = Date.now();
   const iterations: SearchIteration[] = [];
@@ -155,24 +156,25 @@ async function runAlternativeSearchAgentInternal(
     const strategy = strategies[i];
     console.log(`[Agent] Search ${i + 1}/${strategies.length}: "${strategy.query}" (${strategy.name})`);
 
-    let candidates: import('./types').SearchCandidate[] = [];
-    try {
-      candidates = await searchAlternatives(strategy.query, {
-        priceMin: strategy.priceMin,
-        priceMax: strategy.priceMax,
-        inStockOnly: true,
-        limit: 100,
-        sourceNames: strategy.sourceNames,
-        excludeBrands: brandExclusions,
-      }, env);
-    } catch (e) {
-      console.error('[Agent] Datafeedr search failed:', e);
+    const searchResult = await searchAlternatives(strategy.query, {
+      priceMin: strategy.priceMin,
+      priceMax: strategy.priceMax,
+      inStockOnly: true,
+      limit: 100,
+      sourceNames: strategy.sourceNames,
+      excludeBrands: brandExclusions,
+    }, env);
+
+    if (searchResult.error) {
+      console.error('[Agent] Datafeedr search failed:', searchResult.error);
       if (!degradationIssues.includes('product_database_unavailable')) {
         degradationIssues.push('product_database_unavailable');
       }
       iterations.push({ query: strategy.query, strategy: strategy.name, candidateCount: 0, relevantCount: 0, topScore: 0, avgSemanticScore: 0 });
       continue;
     }
+
+    const candidates = searchResult.products;
 
     // Remove candidates that are the same brand under a different name
     const filtered = candidates.filter(c => {
@@ -354,7 +356,7 @@ async function runAlternativeSearchAgentInternal(
 // Product Type Query Generation — strips brand, keeps ONLY the item type
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function generateProductTypeQueries(product: IdentifiedProduct, env: any): Promise<string[]> {
+async function generateProductTypeQueries(product: IdentifiedProduct, env: Env): Promise<string[]> {
   const queries: string[] = [];
   const brandTokens = extractBrandTokens(product.brand);
 
@@ -588,7 +590,7 @@ function buildCategoryFallbackQueries(category: string): string[] {
 // AI Fallback for Product Identification (when scraping fails)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function identifyProductWithAI(url: string, env: any): Promise<IdentifiedProduct | null> {
+async function identifyProductWithAI(url: string, env: Env): Promise<IdentifiedProduct | null> {
   if (!env.OPENAI_API_KEY) return null;
   try {
     const { aiComplete, extractJson } = await import('../services/ai-client');

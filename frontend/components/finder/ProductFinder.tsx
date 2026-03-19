@@ -125,9 +125,19 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
                 <p className="text-sm text-red-300">{finder.error}</p>
               </div>
-              <button onClick={finder.clearError} className="text-red-400 hover:text-red-300">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {finder.lastSearchInput && (
+                  <button
+                    onClick={() => { finder.clearError(); finder.search(finder.lastSearchInput); }}
+                    className="text-xs text-red-300 hover:text-red-100 underline"
+                  >
+                    Retry
+                  </button>
+                )}
+                <button onClick={finder.clearError} className="text-red-400 hover:text-red-300">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

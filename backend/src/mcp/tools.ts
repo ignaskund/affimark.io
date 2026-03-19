@@ -12,6 +12,7 @@ import type {
   ScoredAlternative,
 } from './types';
 import { inferBrand, inferCategory, mapCategory } from '../utils/product-inference';
+import type { Env } from '../index';
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback;
@@ -25,7 +26,7 @@ function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
 // TOOL 1: get_creator_profile
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export async function getCreatorProfile(userId: string, env: any): Promise<CreatorProfile> {
+export async function getCreatorProfile(userId: string, env: Env): Promise<CreatorProfile> {
   const supabaseUrl = env.SUPABASE_URL;
   const supabaseKey = env.SUPABASE_SERVICE_KEY;
 
@@ -165,7 +166,7 @@ function detectAmazonDomain(url: string): string {
   return 'amazon.com';
 }
 
-export async function identifyProduct(url: string, env: any): Promise<IdentifiedProduct> {
+export async function identifyProduct(url: string, env: Env): Promise<IdentifiedProduct> {
   const isAmazon = /amazon\.[a-z.]+/i.test(url);
   const asinMatch = url.match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/)([A-Z0-9]{10})/i);
 
@@ -517,6 +518,11 @@ function isGarbageTitle(title: string): boolean {
 // TOOL 3: search_alternatives
 // ═══════════════════════════════════════════════════════════════════════════════
 
+export interface SearchAlternativesResult {
+  products: SearchCandidate[];
+  error?: string;
+}
+
 export async function searchAlternatives(
   query: string,
   options: {
@@ -527,13 +533,13 @@ export async function searchAlternatives(
     sourceNames?: string[];
     excludeBrands?: string[];
   },
-  env: any
-): Promise<SearchCandidate[]> {
+  env: Env
+): Promise<SearchAlternativesResult> {
   const { searchDatafeedr, convertToAlternativeProduct } = await import('../services/datafeedr-client');
 
   const accessId = env.DATAFEEDR_ACCESS_ID;
   const secretKey = env.DATAFEEDR_SECRET_KEY;
-  if (!accessId || !secretKey) return [];
+  if (!accessId || !secretKey) return { products: [], error: 'Datafeedr credentials not configured' };
 
   const priceMinCents = options.priceMin !== undefined ? Math.round(options.priceMin * 100) : undefined;
   const priceMaxCents = options.priceMax !== undefined ? Math.round(options.priceMax * 100) : undefined;
@@ -578,10 +584,10 @@ export async function searchAlternatives(
       );
     }
 
-    return candidates;
+    return { products: candidates };
   } catch (e) {
     console.error('[MCP search_alternatives] Datafeedr search failed:', e);
-    return [];
+    return { products: [], error: 'Product database temporarily unavailable' };
   }
 }
 
@@ -594,7 +600,7 @@ export async function scoreCandidate(
   originalProduct: IdentifiedProduct,
   profile: CreatorProfile,
   semanticScore: number,
-  env: any
+  env: Env
 ): Promise<ScoredAlternative> {
   const { enrichStatic } = await import('../services/enrichment');
   const { computeAllProductKpis, computeAllBrandKpis, computeWeightedPriorityScore } = await import('../services/priority-kpi-specs');
@@ -704,7 +710,7 @@ export async function scoreCandidate(
 export async function computeSemanticScores(
   queryText: string,
   candidates: Array<{ id: string; name: string; brand?: string; category?: string; description?: string }>,
-  env: any
+  env: Env
 ): Promise<Map<string, number>> {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey || candidates.length === 0) return new Map();

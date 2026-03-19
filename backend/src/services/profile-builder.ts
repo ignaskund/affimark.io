@@ -72,7 +72,8 @@ export async function buildUserProfile(
   const socialContext = await analyzeSocialAccounts(userId, env);
 
   // 3. Analyze storefronts (ONCE, then weekly refresh)
-  const storefrontContext = await analyzeStorefronts(userId, env);
+  const storefrontContextOrNull = await analyzeStorefronts(userId, env);
+  const storefrontContext = storefrontContextOrNull ?? { dominantCategories: [], topBrands: [], avgPricePoint: 0, preferredNetworks: [] };
 
   // 4. Calculate confidence score
   const confidenceScore = calculateProfileConfidence({
@@ -132,6 +133,11 @@ async function getExistingProfile(userId: string, env: any): Promise<UserProfile
     }
   );
 
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'unknown');
+    console.error(`[Profile Builder] Supabase profile fetch failed (${response.status}): ${errText}`);
+    return null;
+  }
   const data = await response.json();
   const result = Array.isArray(data) ? data[0] : null;
 
@@ -257,6 +263,11 @@ async function analyzeSocialAccounts(userId: string, env: any) {
     }
   );
 
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'unknown');
+    console.error(`[Profile Builder] Supabase socials fetch failed (${response.status}): ${errText}`);
+    return { platforms: [], contentCategories: [], audienceDemographics: { ageRange: '', topCountries: [], interests: [] }, estimatedReach: 0 };
+  }
   const socials = await response.json();
 
   if (!Array.isArray(socials) || socials.length === 0) {
@@ -361,6 +372,11 @@ async function analyzeStorefronts(userId: string, env: any) {
     `${supabaseUrl}/rest/v1/user_storefronts?user_id=eq.${userId}&select=platform,storefront_url,display_name`,
     { headers }
   );
+  if (!storefrontsRes.ok) {
+    const errText = await storefrontsRes.text().catch(() => 'unknown');
+    console.error(`[Profile Builder] Supabase storefronts fetch failed (${storefrontsRes.status}): ${errText}`);
+    return null;
+  }
   const storefronts = await storefrontsRes.json();
 
   // 2. Get storefront products (titles, brands, prices, categories)
@@ -368,6 +384,11 @@ async function analyzeStorefronts(userId: string, env: any) {
     `${supabaseUrl}/rest/v1/user_storefront_products?user_id=eq.${userId}&select=title,brand,category,current_price,platform,product_url&limit=100`,
     { headers }
   );
+  if (!productsRes.ok) {
+    const errText = await productsRes.text().catch(() => 'unknown');
+    console.error(`[Profile Builder] Supabase products fetch failed (${productsRes.status}): ${errText}`);
+    return null;
+  }
   const products = await productsRes.json();
 
   const hasStorefronts = Array.isArray(storefronts) && storefronts.length > 0;
