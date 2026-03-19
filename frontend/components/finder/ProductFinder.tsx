@@ -133,6 +133,14 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
         )}
       </AnimatePresence>
 
+      {/* Degradation banner */}
+      {finder.degradation && (
+        <div className="mx-4 mt-2 px-3 py-2 bg-amber-900/20 border border-amber-700/30 rounded-lg text-sm text-amber-200 flex items-center gap-2">
+          <span className="text-amber-400">⚠</span>
+          {finder.degradation.message}
+        </div>
+      )}
+
       {/* ===== INITIAL STATE: Centered chat-style input ===== */}
       {viewState === 'initial' && (
         <div className="flex-1 flex items-center justify-center p-6">
@@ -223,10 +231,10 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
                   <HelpCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm text-blue-300 font-medium">
-                      We found your URL, but couldn't identify the product
+                      We found your URL, but couldn&apos;t identify the product
                     </p>
                     <p className="text-xs text-blue-400/70 mt-1 mb-3">
-                      Amazon blocks automated lookups. Just tell us what the product is and we'll find the best alternatives for you.
+                      Amazon blocks automated lookups. Just tell us what the product is and we&apos;ll find the best alternatives for you.
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -272,7 +280,7 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
                       Set your priorities for better results
                     </p>
                     <p className="text-xs text-amber-400/70 mt-1">
-                      Without priorities, we can't personalize recommendations.
+                      Without priorities, we can&apos;t personalize recommendations.
                     </p>
                     <button
                       onClick={() => router.push('/onboarding/priorities')}
@@ -302,16 +310,10 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
                     </p>
                     <div className="flex gap-3 mt-2">
                       <button
-                        onClick={() => router.push('/social-accounts')}
+                        onClick={() => router.push('/dashboard/settings')}
                         className="text-xs text-gray-400 hover:text-gray-300 underline"
                       >
-                        Connect socials
-                      </button>
-                      <button
-                        onClick={() => router.push('/storefronts')}
-                        className="text-xs text-gray-400 hover:text-gray-300 underline"
-                      >
-                        Add storefronts
+                        Edit priorities
                       </button>
                     </div>
                   </div>
@@ -383,7 +385,15 @@ export default function ProductFinder({ userId, prefillUrl }: ProductFinderProps
               {viewState === 'searching' ? (
                 <ProductScanAnimation isActive={true} />
               ) : (
-                <div className="p-4">
+                <div className="p-4 space-y-4">
+                  {finder.originalProductRisk && finder.originalSearchProduct && (
+                    <ProductRiskCard
+                      productTitle={finder.originalSearchProduct.title}
+                      productPrice={finder.originalSearchProduct.price}
+                      productCurrency={finder.originalSearchProduct.currency}
+                      risk={finder.originalProductRisk}
+                    />
+                  )}
                   <CardStack
                     products={finder.alternatives}
                     currentIndex={finder.currentIndex}

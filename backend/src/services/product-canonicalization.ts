@@ -205,10 +205,12 @@ export function getDeduplicationStats(
   productsWithMultipleVariants: number;
 } {
   const duplicatesRemoved = originalCount - canonicalProducts.length;
-  const deduplicationRate = (duplicatesRemoved / originalCount) * 100;
+  const deduplicationRate = originalCount > 0 ? (duplicatesRemoved / originalCount) * 100 : 0;
 
   const variantCounts = canonicalProducts.map(p => p.variantCount);
-  const avgVariants = variantCounts.reduce((sum, count) => sum + count, 0) / canonicalProducts.length;
+  const avgVariants = canonicalProducts.length > 0
+    ? variantCounts.reduce((sum, count) => sum + count, 0) / canonicalProducts.length
+    : 0;
   const multiVariant = canonicalProducts.filter(p => p.variantCount > 1).length;
 
   return {

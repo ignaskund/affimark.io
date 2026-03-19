@@ -69,7 +69,7 @@ export function ErrorFallback({ error, onRetry }: ErrorFallbackProps) {
             </h2>
 
             <p className="text-muted-foreground max-w-md mb-6">
-                We encountered an unexpected error. This has been logged and we'll look into it.
+                We encountered an unexpected error. This has been logged and we&apos;ll look into it.
             </p>
 
             {process.env.NODE_ENV === 'development' && error && (

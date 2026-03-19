@@ -8,8 +8,6 @@ import { cors } from 'hono/cors';
 // Import full API routes
 import api from './api';
 
-// Import watchlist monitor for scheduled tasks
-import { runWatchlistMonitor } from './services/verifier/watchlist-monitor';
 
 // Environment type - exported for use in other files
 export type Env = {
@@ -84,20 +82,7 @@ app.get('/', (c) => {
 // Mount all API routes
 app.route('/', api);
 
-// Export with scheduled handler for cron triggers
 export default {
   fetch: app.fetch,
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    // Run watchlist monitoring on schedule (every 6 hours)
-    ctx.waitUntil(
-      runWatchlistMonitor(env)
-        .then((result) => {
-          console.log(`Watchlist monitor completed: checked ${result.checked} items, created ${result.alerts} alerts`);
-        })
-        .catch((error) => {
-          console.error('Watchlist monitor error:', error);
-        })
-    );
-  },
 };
 

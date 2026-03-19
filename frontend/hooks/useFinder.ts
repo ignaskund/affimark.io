@@ -33,6 +33,7 @@ interface UseFinderReturn {
   // Original product risk (from search-v2)
   originalProductRisk: any | null;
   originalSearchProduct: any | null;
+  degradation: { level: string; message: string } | null;
 
   // User context
   productPriorities: Priority[];
@@ -73,6 +74,7 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
   const [pendingUrl, setPendingUrl] = useState('');
   const [originalProductRisk, setOriginalProductRisk] = useState<any | null>(null);
   const [originalSearchProduct, setOriginalSearchProduct] = useState<any | null>(null);
+  const [degradation, setDegradation] = useState<{ level: string; message: string } | null>(null);
 
   // User context
   const [productPriorities, setProductPriorities] = useState<Priority[]>([]);
@@ -214,6 +216,7 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
       setCurrentIndex(0);
       setOriginalProductRisk(data.originalProductRisk || null);
       setOriginalSearchProduct(data.originalProduct || null);
+      setDegradation(data.degradation && data.degradation.level !== 'none' ? data.degradation : null);
 
       // Inject initial assistant message
       const count = data.alternativesCount || alts.length;
@@ -470,6 +473,7 @@ export function useFinder({ userId }: UseFinderOptions): UseFinderReturn {
     pendingUrl,
     originalProductRisk,
     originalSearchProduct,
+    degradation,
     productPriorities,
     brandPriorities,
     activeContext,

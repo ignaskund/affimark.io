@@ -452,7 +452,10 @@ async function analyzeStorefronts(userId: string, env: any) {
     .map(([brand]) => brand);
 
   // 7. Calculate average price point from products that have prices
-  const pricedProducts = productList.filter((p: any) => p.current_price && parseFloat(p.current_price) > 0);
+  const pricedProducts = productList.filter((p: any) => {
+    const price = parseFloat(p.current_price);
+    return !isNaN(price) && price > 0;
+  });
   const avgPricePoint = pricedProducts.length > 0
     ? pricedProducts.reduce((sum: number, p: any) => sum + parseFloat(p.current_price), 0) / pricedProducts.length
     : 0;

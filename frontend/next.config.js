@@ -1,26 +1,28 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  images: {
-    domains: ['lh3.googleusercontent.com', 'pbs.twimg.com', 'yt3.ggpht.com'],
-  },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
+  },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+      { protocol: 'https', hostname: 'pbs.twimg.com' },
+      { protocol: 'https', hostname: 'yt3.ggpht.com' },
+      { protocol: 'https', hostname: '**.googleusercontent.com' },
+    ],
   },
   async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8787';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8787';
     return [
       {
-        // Exclude NextAuth and local Next.js API routes from proxy.
-        source: '/api/:path((?!auth/session|auth/providers|auth/signin|auth/signout|auth/callback|auth/csrf|finder/search|finder/saved|finder/session|preferences/priorities|social-accounts|storefronts).*)',
+        source: '/api/:path((?!auth|finder/search-v2|finder/search|finder/saved|finder/session|preferences/priorities|portfolio/audit|onboarding|user).*)',
         destination: `${apiUrl}/api/:path*`,
       },
     ];
   },
-}
+};
 
-module.exports = nextConfig
-
+export default nextConfig;

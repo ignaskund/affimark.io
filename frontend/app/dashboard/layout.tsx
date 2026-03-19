@@ -4,12 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
-    Store,
-    Link2,
-    Sparkles,
     ShieldCheck,
-    FileText,
-    ScanLine,
+    Search,
     Settings,
     LogOut,
     Menu,
@@ -18,6 +14,7 @@ import {
     Coffee,
 } from 'lucide-react';
 import { useState } from 'react';
+import { signOut } from 'next-auth/react';
 
 export default function DashboardLayout({
     children,
@@ -29,25 +26,16 @@ export default function DashboardLayout({
 
     const navigationGroups = [
         {
-            label: 'Revenue',
+            label: 'Risk Intelligence',
             items: [
                 { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-                { name: 'Smart Optimizer', href: '/dashboard/optimizer', icon: Sparkles, badge: '★' },
-                { name: 'Tax Export', href: '/dashboard/tax-export', icon: FileText },
+                { name: 'Portfolio Audit', href: '/dashboard/portfolio-audit', icon: ShieldCheck, badge: '★' },
+                { name: 'Product Finder', href: '/dashboard/product-finder', icon: Search },
             ],
         },
         {
-            label: 'Monitoring',
+            label: 'Account',
             items: [
-                { name: 'Link Health', href: '/dashboard/revenue-loss', icon: ShieldCheck },
-                { name: 'SmartWrappers', href: '/dashboard/smartwrappers', icon: Link2 },
-                { name: 'Storefronts', href: '/dashboard/storefronts', icon: Store },
-            ],
-        },
-        {
-            label: 'Tools',
-            items: [
-                { name: 'Content Scanner', href: '/dashboard/scanner', icon: ScanLine },
                 { name: 'Settings', href: '/dashboard/settings', icon: Settings },
             ],
         },
@@ -129,7 +117,10 @@ export default function DashboardLayout({
 
                 {/* Sign Out */}
                 <div className="p-4 border-t border-border">
-                    <button className="nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10">
+                    <button
+                        onClick={() => signOut({ callbackUrl: '/' })}
+                        className="nav-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    >
                         <LogOut className="w-5 h-5" />
                         <span className="font-medium">Sign Out</span>
                     </button>

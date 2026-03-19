@@ -108,7 +108,7 @@ export default function CardStack({
         <span className="text-6xl mb-4">✨</span>
         <h3 className="text-xl font-semibold text-white mb-2">All caught up!</h3>
         <p className="text-gray-400 max-w-sm mb-4">
-          You've reviewed all {products.length} products. Check your saved list or search for more.
+          You&apos;ve reviewed all {products.length} products. Check your saved list or search for more.
         </p>
         <button
           onClick={() => onIndexChange(0)}

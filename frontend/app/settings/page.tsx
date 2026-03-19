@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
 import { Settings, Target, Bell, CreditCard, User, ChevronRight } from 'lucide-react';
 import PrioritiesEditor from '@/components/settings/PrioritiesEditor';
 
@@ -45,8 +44,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <AppShell>
-      <div className="flex-1 flex flex-col bg-black text-white">
+    <div className="flex-1 flex flex-col bg-black text-white">
         {/* Header */}
         <header className="border-b border-gray-900 px-8 py-6">
           <div className="flex items-center gap-3">
@@ -121,7 +119,7 @@ export default function SettingsPage() {
               <div className="max-w-2xl">
                 <h2 className="text-lg font-semibold text-white mb-2">Notifications</h2>
                 <p className="text-sm text-gray-500">
-                  Notification settings coming soon. You'll be able to control email alerts,
+                  Notification settings coming soon. You&apos;ll be able to control email alerts,
                   weekly summaries, and product monitoring notifications.
                 </p>
               </div>
@@ -131,7 +129,7 @@ export default function SettingsPage() {
               <div className="max-w-2xl">
                 <h2 className="text-lg font-semibold text-white mb-2">Billing</h2>
                 <p className="text-sm text-gray-500">
-                  Billing settings coming soon. You'll be able to manage your subscription,
+                  Billing settings coming soon. You&apos;ll be able to manage your subscription,
                   view invoices, and update payment methods.
                 </p>
               </div>
@@ -141,14 +139,13 @@ export default function SettingsPage() {
               <div className="max-w-2xl">
                 <h2 className="text-lg font-semibold text-white mb-2">Account</h2>
                 <p className="text-sm text-gray-500">
-                  Account settings coming soon. You'll be able to update your profile,
+                  Account settings coming soon. You&apos;ll be able to update your profile,
                   change your password, and manage connected accounts.
                 </p>
               </div>
             )}
           </div>
         </main>
-      </div>
-    </AppShell>
+    </div>
   );
 }

@@ -43,7 +43,22 @@ const WHITE_LABEL_MERCHANTS = new Set([
   'temu', 'wish', 'alibaba', 'aliexpress', 'shein', 'banggood', 'gearbest', 'dhgate',
 ]);
 
+const AGENT_TIMEOUT_MS = 45000;
+
 export async function runAlternativeSearchAgent(
+  productUrl: string,
+  userId: string,
+  env: any,
+): Promise<AgentSearchResult> {
+  return Promise.race([
+    runAlternativeSearchAgentInternal(productUrl, userId, env),
+    new Promise<AgentSearchResult>((_, reject) =>
+      setTimeout(() => reject(new Error('Agent search timed out')), AGENT_TIMEOUT_MS)
+    ),
+  ]);
+}
+
+async function runAlternativeSearchAgentInternal(
   productUrl: string,
   userId: string,
   env: any,
@@ -52,11 +67,15 @@ export async function runAlternativeSearchAgent(
   const iterations: SearchIteration[] = [];
   const allCandidateIds = new Set<string>();
   let allScoredCandidates: ScoredAlternative[] = [];
+  const degradationIssues: string[] = [];
 
   // ── STEP 1: Load creator profile ──────────────────────────────────────────
   console.log('[Agent] Step 1: Loading creator profile...');
   const profile = await getCreatorProfile(userId, env);
   console.log(`[Agent] Profile: confidence=${profile.confidenceScore}% product=[${profile.productPriorities.slice(0, 3).map(p => p.id)}] brand=[${profile.brandPriorities.slice(0, 3).map(p => p.id)}]`);
+  if (profile.confidenceScore === 0) {
+    degradationIssues.push('profile_unavailable');
+  }
 
   const qualityFocused = profile.productPriorities.slice(0, 2).some(p =>
     ['quality', 'brand_recognition', 'reviews'].includes(p.id)
@@ -114,6 +133,7 @@ export async function runAlternativeSearchAgent(
     console.log(`[Agent] Original product risk: overall=${originalProductRisk.overall} confidence=${originalProductRisk.confidence}`);
   } catch (e) {
     console.warn('[Agent] Could not score original product risk:', e);
+    degradationIssues.push('original_risk_scoring_failed');
   }
 
   // ── STEP 3: Generate search queries for the PRODUCT TYPE (no brand) ──────
@@ -135,14 +155,24 @@ export async function runAlternativeSearchAgent(
     const strategy = strategies[i];
     console.log(`[Agent] Search ${i + 1}/${strategies.length}: "${strategy.query}" (${strategy.name})`);
 
-    const candidates = await searchAlternatives(strategy.query, {
-      priceMin: strategy.priceMin,
-      priceMax: strategy.priceMax,
-      inStockOnly: true,
-      limit: 100,
-      sourceNames: strategy.sourceNames,
-      excludeBrands: brandExclusions,
-    }, env);
+    let candidates: import('./types').SearchCandidate[] = [];
+    try {
+      candidates = await searchAlternatives(strategy.query, {
+        priceMin: strategy.priceMin,
+        priceMax: strategy.priceMax,
+        inStockOnly: true,
+        limit: 100,
+        sourceNames: strategy.sourceNames,
+        excludeBrands: brandExclusions,
+      }, env);
+    } catch (e) {
+      console.error('[Agent] Datafeedr search failed:', e);
+      if (!degradationIssues.includes('product_database_unavailable')) {
+        degradationIssues.push('product_database_unavailable');
+      }
+      iterations.push({ query: strategy.query, strategy: strategy.name, candidateCount: 0, relevantCount: 0, topScore: 0, avgSemanticScore: 0 });
+      continue;
+    }
 
     // Remove candidates that are the same brand under a different name
     const filtered = candidates.filter(c => {
@@ -299,6 +329,14 @@ export async function runAlternativeSearchAgent(
     durationMs,
   }));
 
+  const degradation = degradationIssues.length > 0 ? {
+    level: (degradationIssues.length >= 3 ? 'severe' : 'partial') as 'partial' | 'severe',
+    issues: degradationIssues,
+    message: degradationIssues.length >= 3
+      ? 'Results may be significantly less personalized due to service issues.'
+      : 'Some personalization features are temporarily reduced.',
+  } : undefined;
+
   return {
     originalProduct: product,
     originalProductRisk,
@@ -307,6 +345,7 @@ export async function runAlternativeSearchAgent(
     totalCandidatesEvaluated: allCandidateIds.size,
     agentReasoning,
     searchDurationMs: Date.now() - startTime,
+    degradation,
   };
 }
 

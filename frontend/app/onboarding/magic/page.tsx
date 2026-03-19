@@ -270,10 +270,10 @@ export default function MagicOnboardingPage() {
                         <Zap className="w-8 h-8 text-white" />
                     </div>
                     <h1 className="text-4xl lg:text-5xl font-bold text-foreground">
-                        Let's build your HQ
+                        Let&apos;s build your HQ
                     </h1>
                     <p className="text-xl text-muted-foreground max-w-lg mx-auto">
-                        Paste your link-in-bio URL. We'll auto-detect your storefronts and products.
+                        Paste your link-in-bio URL. We&apos;ll auto-detect your storefronts and products.
                     </p>
                 </div>
 

@@ -148,10 +148,10 @@ export default function QuestionnaireFlow() {
         <div className="space-y-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              What's your link-in-bio URL?
+              What&apos;s your link-in-bio URL?
             </h2>
             <p className="text-gray-600">
-              We'll scan it to find your affiliate links and start monitoring them.
+              We&apos;ll scan it to find your affiliate links and start monitoring them.
             </p>
           </div>
 
@@ -260,7 +260,7 @@ export default function QuestionnaireFlow() {
               How do you primarily monetize?
             </h2>
             <p className="text-gray-600">
-              We'll prioritize the right types of issues for your business model.
+              We&apos;ll prioritize the right types of issues for your business model.
             </p>
           </div>
 

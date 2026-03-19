@@ -91,7 +91,7 @@ export default function SignUpForm({ callbackUrl }: SignUpFormProps) {
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Check your email!</h2>
                 <p className="text-gray-400 mb-6">
-                    We've sent a 6-digit verification code to<br />
+                    We&apos;ve sent a 6-digit verification code to<br />
                     <span className="text-white font-medium">{email}</span>
                 </p>
                 <p className="text-sm text-gray-500">

@@ -141,6 +141,22 @@ function buildEmptyProfile(userId: string): CreatorProfile {
 // TOOL 2: identify_product
 // ═══════════════════════════════════════════════════════════════════════════════
 
+function detectAmazonDomain(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    if (hostname.includes('amazon.de')) return 'amazon.de';
+    if (hostname.includes('amazon.co.uk')) return 'amazon.co.uk';
+    if (hostname.includes('amazon.fr')) return 'amazon.fr';
+    if (hostname.includes('amazon.it')) return 'amazon.it';
+    if (hostname.includes('amazon.es')) return 'amazon.es';
+    if (hostname.includes('amazon.co.jp')) return 'amazon.co.jp';
+    if (hostname.includes('amazon.nl')) return 'amazon.nl';
+    if (hostname.includes('amazon.pl')) return 'amazon.pl';
+    if (hostname.includes('amazon.se')) return 'amazon.se';
+  } catch {}
+  return 'amazon.com';
+}
+
 export async function identifyProduct(url: string, env: any): Promise<IdentifiedProduct> {
   const isAmazon = /amazon\.[a-z.]+/i.test(url);
   const asinMatch = url.match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/)([A-Z0-9]{10})/i);
@@ -149,8 +165,9 @@ export async function identifyProduct(url: string, env: any): Promise<Identified
   if (isAmazon && asinMatch && env.RAINFOREST_API_KEY) {
     try {
       const asin = asinMatch[1];
+      const amazonDomain = detectAmazonDomain(url);
       const rfRes = await fetch(
-        `https://api.rainforestapi.com/request?api_key=${env.RAINFOREST_API_KEY}&type=product&asin=${asin}&amazon_domain=amazon.com`
+        `https://api.rainforestapi.com/request?api_key=${env.RAINFOREST_API_KEY}&type=product&asin=${asin}&amazon_domain=${amazonDomain}`
       );
       if (rfRes.ok) {
         const data: any = await rfRes.json();
@@ -662,7 +679,6 @@ export async function scoreCandidate(
       betterCommission: (signals.commissionRate || 0) > originalCommissionBaseline,
       betterForPriority1: productKpis[0]?.score >= 60,
     },
-    _enrichedSignals: signals,
   };
 }
 
