@@ -45,8 +45,22 @@ export default function PortfolioHealthCard() {
 
   useEffect(() => {
     let cancelled = false;
+    const CACHE_KEY = 'portfolio-audit-cache';
+    const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
     async function load() {
+      // Check sessionStorage cache first
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_TTL_MS) {
+            if (!cancelled) { setSummary(data); setLoading(false); }
+            return;
+          }
+        }
+      } catch {}
+
       try {
         const res = await fetch('/api/portfolio/audit', {
           method: 'POST',
@@ -54,7 +68,12 @@ export default function PortfolioHealthCard() {
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setSummary(data.portfolioSummary || null);
+        const portfolioSummary = data.portfolioSummary || null;
+        if (!cancelled) setSummary(portfolioSummary);
+        // Cache the result
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: portfolioSummary, timestamp: Date.now() }));
+        } catch {}
       } catch {
         if (!cancelled) setError(true);
       } finally {

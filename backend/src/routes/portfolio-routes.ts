@@ -13,8 +13,9 @@ import { getCreatorProfile, identifyProduct } from '../mcp/tools';
 import { enrichStatic } from '../services/enrichment';
 import { scoreOutcomeFeasibility } from '../services/outcome-feasibility-scorer';
 import { checkBudget, logOperationCost } from '../services/cost-governor';
+import type { Env } from '../index';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: Env }>();
 
 app.use('/*', cors({
   origin: (origin) => {
