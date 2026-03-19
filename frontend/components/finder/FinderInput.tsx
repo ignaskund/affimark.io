@@ -147,9 +147,9 @@ export default function FinderInput({
           className="text-xs text-gray-500"
         >
           {inputType === 'url' ? (
-            <>We'll analyze this product and find better alternatives based on your priorities.</>
+            <>We&apos;ll analyze this product and find better alternatives based on your priorities.</>
           ) : (
-            <>We'll search for the best products in this category that match your priorities.</>
+            <>We&apos;ll search for the best products in this category that match your priorities.</>
           )}
         </motion.p>
       )}

@@ -174,7 +174,7 @@ function VerifyEmailPageInner() {
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">Verify your email</h1>
             <p className="text-gray-400">
-              We've sent a 6-digit code to
+              We&apos;ve sent a 6-digit code to
             </p>
             <p className="text-white font-medium mt-1">{email}</p>
           </div>
@@ -234,7 +234,7 @@ function VerifyEmailPageInner() {
 
           {/* Resend Code */}
           <div className="text-center">
-            <p className="text-sm text-gray-400 mb-2">Didn't receive the code?</p>
+            <p className="text-sm text-gray-400 mb-2">Didn&apos;t receive the code?</p>
             <button
               onClick={handleResendCode}
               disabled={resending}

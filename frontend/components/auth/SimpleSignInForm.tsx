@@ -152,7 +152,7 @@ export default function SimpleSignInForm({ callbackUrl }: SimpleSignInFormProps)
       {/* Footer */}
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link
             href="/sign-up"
             className="text-purple-400 hover:underline"

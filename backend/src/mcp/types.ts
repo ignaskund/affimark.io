@@ -137,4 +137,9 @@ export interface AgentSearchResult {
   totalCandidatesEvaluated: number;
   agentReasoning: string;
   searchDurationMs: number;
+  degradation?: {
+    level: 'none' | 'partial' | 'severe';
+    issues: string[];
+    message: string;
+  };
 }

@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { Env } from '../index';
 import { analyzeProductIntent } from '../services/product-intent-analyzer';
 import { buildUserProfile } from '../services/profile-builder';
 import { searchAllNetworks, findProductAlternatives } from '../services/multi-network-search';
@@ -12,7 +13,7 @@ import { analyzeDynamicIntent, applyDynamicIntent, explainDynamicIntent } from '
 import { generateContextHash, generateContextLabel } from '../services/context-hash';
 import { checkBudget, logOperationCost } from '../services/cost-governor';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: Env }>();
 const TOP_RESULTS_LIMIT = 5;
 const SEARCH_TIME_BUDGET_MS = 15000;
 
@@ -289,7 +290,7 @@ app.get('/profile/:userId', async (c) => {
       }
     );
 
-    const data = await response.json();
+    const data = await response.json() as any[];
     const profileData = data[0];
 
     if (!profileData) {
@@ -299,22 +300,30 @@ app.get('/profile/:userId', async (c) => {
       }, 404);
     }
 
+    function safeJsonParse(value: string | null | undefined, fallback: any = []): any {
+      if (!value) return fallback;
+      try { return JSON.parse(value); } catch {
+        console.warn('[Finder] Failed to parse JSON:', String(value).substring(0, 50));
+        return fallback;
+      }
+    }
+
     // Reconstruct profile from DB
     const profile = {
       userId: profileData.user_id,
-      productPriorities: JSON.parse(profileData.product_priorities || '[]'),
-      brandPriorities: JSON.parse(profileData.brand_priorities || '[]'),
+      productPriorities: safeJsonParse(profileData.product_priorities),
+      brandPriorities: safeJsonParse(profileData.brand_priorities),
       socialContext: {
-        platforms: JSON.parse(profileData.social_platforms || '[]'),
-        contentCategories: JSON.parse(profileData.content_categories || '[]'),
-        audienceDemographics: JSON.parse(profileData.audience_demographics || '{}'),
+        platforms: safeJsonParse(profileData.social_platforms),
+        contentCategories: safeJsonParse(profileData.content_categories),
+        audienceDemographics: safeJsonParse(profileData.audience_demographics, {}),
         estimatedReach: profileData.estimated_reach || 0,
       },
       storefrontContext: {
-        dominantCategories: JSON.parse(profileData.dominant_categories || '[]'),
-        topBrands: JSON.parse(profileData.top_brands || '[]'),
+        dominantCategories: safeJsonParse(profileData.dominant_categories),
+        topBrands: safeJsonParse(profileData.top_brands),
         avgPricePoint: profileData.avg_price_point || 0,
-        preferredNetworks: JSON.parse(profileData.preferred_networks || '[]'),
+        preferredNetworks: safeJsonParse(profileData.preferred_networks),
       },
       profileLastUpdated: profileData.updated_at,
       socialLastAnalyzed: profileData.last_social_analysis,
@@ -409,7 +418,7 @@ async function createFinderSession(
     throw new Error(`Failed to create session: ${error}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any[];
   return data[0];
 }
 

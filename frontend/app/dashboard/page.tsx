@@ -204,7 +204,7 @@ export default async function DashboardPage() {
             Welcome to AffiMark
           </h1>
           <p className="text-xl text-muted-foreground mb-12 max-w-lg mx-auto">
-            Let's set up your revenue HQ in under 2 minutes
+            Let&apos;s set up your revenue HQ in under 2 minutes
           </p>
 
           <div className="grid gap-4 max-w-md mx-auto mb-12">
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
 
           <div className="glass-card p-6 max-w-md mx-auto">
             <p className="text-sm text-muted-foreground mb-3">
-              What you'll get access to:
+              What you&apos;ll get access to:
             </p>
             <ul className="text-sm text-left space-y-2">
               <li className="flex items-center gap-2">

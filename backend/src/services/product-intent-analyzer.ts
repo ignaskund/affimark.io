@@ -855,6 +855,7 @@ export function extractDominantCategories(intents: ProductIntent[]): Array<{
   }
 
   const total = intents.length;
+  if (total === 0) return [];
   const categories = Array.from(categoryMap.entries())
     .map(([category, count]) => ({
       category,

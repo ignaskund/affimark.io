@@ -755,6 +755,11 @@ async function searchViaDatafeedr(
       (coreKeywords.length >= 2 ? coreKeywords.slice(0, 3).join(' ') : null) ||
       intent.searchQuery;
 
+    // Datafeedr stores finalprice in minor units (cents), matching normalizeAmountFromDatafeedr ÷100.
+    // Convert our EUR price band to cents before sending to the API.
+    const priceMinCents = priceMin !== undefined ? Math.round(priceMin * 100) : undefined;
+    const priceMaxCents = priceMax !== undefined ? Math.round(priceMax * 100) : undefined;
+
     // ── Phase A: preferred-network search (targeted) ─────────────────────────
     // Search first within the user's connected networks using source_names.
     // Phase A results get tagged _preferredNetwork=true and a +5 combined score
@@ -791,11 +796,6 @@ async function searchViaDatafeedr(
     // user's storefronts don't map cleanly to Datafeedr source names.
 
     console.log(`[Datafeedr] Phase B: broad search "${primaryQuery}" (category: ${intent.category}, all networks)`);
-
-    // Datafeedr stores finalprice in minor units (cents), matching normalizeAmountFromDatafeedr ÷100.
-    // Convert our EUR price band to cents before sending to the API.
-    const priceMinCents = priceMin !== undefined ? Math.round(priceMin * 100) : undefined;
-    const priceMaxCents = priceMax !== undefined ? Math.round(priceMax * 100) : undefined;
 
     if (priceMinCents !== undefined || priceMaxCents !== undefined) {
       console.log(`[Datafeedr] Price filter (cents): ${priceMinCents ?? '–'} – ${priceMaxCents ?? '–'} (EUR: ${priceMin?.toFixed(2) ?? '–'} – ${priceMax?.toFixed(2) ?? '–'})`);

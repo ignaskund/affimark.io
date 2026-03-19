@@ -113,7 +113,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
         <p className="text-gray-400 mb-6">
-          We've sent a magic link to <strong className="text-white">{email}</strong>
+          We&apos;ve sent a magic link to <strong className="text-white">{email}</strong>
         </p>
         <p className="text-sm text-gray-500">
           Click the link in your email to sign in to AffiMark.
@@ -231,7 +231,7 @@ export default function SignInForm({ callbackUrl }: SignInFormProps) {
       {/* Footer */}
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link
             href="/sign-up"
             className="text-orange-400 hover:text-orange-300 font-medium"

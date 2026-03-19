@@ -117,7 +117,7 @@ export default function PrioritiesOnboardingPage() {
       }).catch(() => {/* fire-and-forget, ignore errors */});
 
       // Navigate to dashboard
-      router.push('/dashboard/product-finder');
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
       setIsLoading(false);

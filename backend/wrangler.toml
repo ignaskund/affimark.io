@@ -22,6 +22,5 @@ binding = "AI"
 binding = "AI_CACHE"
 id = "1027fd9f1443433ca3dc4ff2d5bf0b2d"
 
-# Cron triggers for scheduled tasks
-[triggers]
-crons = ["0 */6 * * *"]  # Every 6 hours for watchlist monitoring
+[env.production]
+vars = { NODE_ENV = "production" }
