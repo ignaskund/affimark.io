@@ -42,7 +42,17 @@ const TOP_K = 5;
 
 const WHITE_LABEL_MERCHANTS = new Set([
   'temu', 'wish', 'alibaba', 'aliexpress', 'shein', 'banggood', 'gearbest', 'dhgate',
+  'alibaba eu', 'alibaba.com', 'made-in-china', '1688',
 ]);
+
+function isWhiteLabelMerchant(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  if (WHITE_LABEL_MERCHANTS.has(lower)) return true;
+  for (const wl of WHITE_LABEL_MERCHANTS) {
+    if (lower.includes(wl)) return true;
+  }
+  return false;
+}
 
 const AGENT_TIMEOUT_MS = 45000;
 
@@ -220,7 +230,7 @@ async function runAlternativeSearchAgentInternal(
 
     // White-label filter for quality-focused creators
     const qualityPassed = qualityFocused
-      ? semanticPassed.filter(c => !WHITE_LABEL_MERCHANTS.has(c.merchant.toLowerCase()))
+      ? semanticPassed.filter(c => !isWhiteLabelMerchant(c.merchant) && !isWhiteLabelMerchant(c.brand))
       : semanticPassed;
 
     // Score candidates against creator's priorities
@@ -441,6 +451,7 @@ Return ONLY two lines, nothing else:
 specific query
 broad query`,
         maxTokens: 40,
+        temperature: 0,
         apiKey,
       });
       const lines = distilled.trim().split('\n').map(l => l.trim().replace(/^["'\d.)\-]+\s*/, '').replace(/["']/g, '').toLowerCase()).filter(l => l.length >= 3);
@@ -625,7 +636,7 @@ URL: ${url}
 Return JSON: {"title":"product name","brand":"brand or null","category":"Electronics|Fashion|Home & Garden|Beauty & Health|Sports & Outdoors","subcategory":"specific type","searchQueries":["2-4 word product type WITHOUT brand name","alternative query"],"confidence":0-100}
 
 CRITICAL: searchQueries must describe the product TYPE only, never include the brand. E.g. "cable knit pullover" not "Song of Style pullover".`,
-      maxTokens: 250, apiKey: env.OPENAI_API_KEY,
+      maxTokens: 250, temperature: 0, apiKey: env.OPENAI_API_KEY,
     });
     const parsed = extractJson(text);
     if (parsed?.title && parsed.confidence > 20) {

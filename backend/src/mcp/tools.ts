@@ -230,22 +230,36 @@ export async function identifyProduct(url: string, env: Env): Promise<Identified
   const asinMatch = url.match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/)([A-Z0-9]{10})/i);
 
   // Strategy 1: Rainforest API for Amazon
-  if (isAmazon && asinMatch && env.RAINFOREST_API_KEY) {
-    try {
-      const asin = asinMatch[1];
-      const amazonDomain = detectAmazonDomain(url);
-      const rfRes = await fetch(
-        `https://api.rainforestapi.com/request?api_key=${env.RAINFOREST_API_KEY}&type=product&asin=${asin}&amazon_domain=${amazonDomain}`
-      );
-      if (rfRes.ok) {
-        const data: any = await rfRes.json();
-        const product = data?.product;
-        if (product?.title) {
-          return buildIdentifiedProduct(product.title, product.brand, product.categories?.[0]?.name,
-            product.buybox_winner?.price?.value, product.buybox_winner?.price?.currency || 'USD', 'rainforest');
+  if (isAmazon && asinMatch) {
+    const asin = asinMatch[1];
+    if (!env.RAINFOREST_API_KEY) {
+      console.warn(`[MCP identify_product] RAINFOREST_API_KEY not set — skipping Rainforest for ASIN ${asin}. Set this key for deterministic Amazon identification.`);
+    } else {
+      try {
+        const amazonDomain = detectAmazonDomain(url);
+        console.log(`[MCP identify_product] Rainforest call: ASIN=${asin}, domain=${amazonDomain}`);
+        const rfRes = await fetch(
+          `https://api.rainforestapi.com/request?api_key=${env.RAINFOREST_API_KEY}&type=product&asin=${asin}&amazon_domain=${amazonDomain}`
+        );
+        console.log(`[MCP identify_product] Rainforest response: status=${rfRes.status}`);
+        if (rfRes.ok) {
+          const data: any = await rfRes.json();
+          const product = data?.product;
+          if (product?.title) {
+            console.log(`[MCP identify_product] Rainforest success: "${product.title}" by ${product.brand}, price=${product.buybox_winner?.price?.value}`);
+            return buildIdentifiedProduct(product.title, product.brand, product.categories?.[0]?.name,
+              product.buybox_winner?.price?.value, product.buybox_winner?.price?.currency || 'USD', 'rainforest');
+          } else {
+            console.warn(`[MCP identify_product] Rainforest returned OK but no product.title. Keys: ${Object.keys(data || {}).join(', ')}`);
+          }
+        } else {
+          const errBody = await rfRes.text().catch(() => '');
+          console.error(`[MCP identify_product] Rainforest HTTP ${rfRes.status}: ${errBody.substring(0, 200)}`);
         }
+      } catch (e: any) {
+        console.error(`[MCP identify_product] Rainforest exception: ${e?.message || e}`);
       }
-    } catch (e) { console.warn('[MCP identify_product] Rainforest failed:', e); }
+    }
   }
 
   // Strategy 2: AI ASIN knowledge for Amazon (moved up — more reliable than slug extraction)
@@ -254,6 +268,7 @@ export async function identifyProduct(url: string, env: Env): Promise<Identified
       const { aiComplete, extractJson } = await import('../services/ai-client');
       const asin = asinMatch[1];
       const amazonDomain = detectAmazonDomain(url);
+      console.log(`[MCP identify_product] AI ASIN lookup: ASIN=${asin}, domain=${amazonDomain}`);
       const text = await aiComplete({
         prompt: `What product is sold on ${amazonDomain} with ASIN ${asin}?
 
@@ -261,6 +276,7 @@ Return JSON: {"title": "full product name", "brand": "brand name", "category": "
 
 CRITICAL: searchQueries must describe the product TYPE, never include the brand. E.g. "over-ear noise cancelling headphones" not "Sony headphones". If you don't know this ASIN, set confidence to 0.`,
         maxTokens: 250,
+        temperature: 0,
         apiKey: env.OPENAI_API_KEY,
       });
       const parsed = extractJson(text);
@@ -326,7 +342,7 @@ CRITICAL: searchQueries must describe the product TYPE, never include the brand.
 Separate the brand name from the product description.
 Return ONLY JSON: {"brand": "brand name or null", "product": "product description without brand", "category": "Fashion|Beauty & Health|Electronics|Home & Garden|Sports & Outdoors|Health & Nutrition|Sports Nutrition"}
 Note: Sports supplements, vitamins, and nutrition products should be "Health & Nutrition" or "Sports Nutrition", NOT "Sports & Outdoors".`,
-                maxTokens: 80, apiKey: env.OPENAI_API_KEY,
+                maxTokens: 80, temperature: 0, apiKey: env.OPENAI_API_KEY,
               });
               const parsed2 = extractJson(aiResult);
               if (parsed2?.product) {
@@ -417,6 +433,7 @@ If you can identify the product, return JSON with:
 CRITICAL: searchQueries must describe the PRODUCT TYPE specifically (e.g. "cable knit pullover", "retro square sunglasses", "dry texture hair spray") — never generic category words.
 If you can't identify it, set confidence to 0.`,
         maxTokens: 300,
+        temperature: 0,
         apiKey: env.OPENAI_API_KEY,
       });
       const parsed = extractJson(text);
