@@ -560,6 +560,7 @@ app.post('/search-v2', async (c) => {
       agentReasoning: result.agentReasoning,
       searchIterations: result.searchIterations,
       totalEvaluated: result.totalCandidatesEvaluated,
+      degradation: result.degradation || null,
       status: normalizedAlternatives.length > 0 ? 'ready' : (result.originalProduct.confidence < 15 ? 'product_unidentified' : 'no_alternatives'),
       meta: {
         duration,

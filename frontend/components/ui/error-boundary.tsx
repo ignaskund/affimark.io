@@ -87,7 +87,8 @@ export function ErrorFallback({ error, onRetry }: ErrorFallbackProps) {
 
             <div className="flex gap-3">
                 {onRetry && (
-                    <Button variant="primary" onClick={onRetry} leftIcon={<RefreshCw className="w-4 h-4" />}>
+                    <Button variant="default" onClick={onRetry}>
+                        <RefreshCw className="w-4 h-4" />
                         Try again
                     </Button>
                 )}

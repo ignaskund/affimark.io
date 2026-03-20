@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,14 @@ import { PRODUCT_PRIORITIES, BRAND_PRIORITIES, Priority } from '@/types/finder';
 type Step = 'product' | 'brand' | 'review';
 
 export default function PrioritiesOnboardingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>}>
+      <PrioritiesContent />
+    </Suspense>
+  );
+}
+
+function PrioritiesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -113,7 +121,7 @@ export default function PrioritiesOnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ userId: session?.user?.id }),
+        body: JSON.stringify({ userId: (session?.user as any)?.id }),
       }).catch(() => {/* fire-and-forget, ignore errors */});
 
       // Navigate to dashboard

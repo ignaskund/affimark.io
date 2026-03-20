@@ -176,10 +176,10 @@ export default function StorefrontBreakdownCard({ storefronts, totalProducts }: 
                     </p>
                 </div>
                 <Link
-                    href="/dashboard/storefronts"
+                    href="/onboarding/magic"
                     className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                 >
-                    View all
+                    Manage
                 </Link>
             </div>
 
@@ -190,12 +190,9 @@ export default function StorefrontBreakdownCard({ storefronts, totalProducts }: 
             </div>
 
             {storefronts.length > 3 && (
-                <Link
-                    href="/dashboard/storefronts"
-                    className="block text-center text-sm text-muted-foreground hover:text-foreground mt-4 pt-4 border-t border-white/10 transition-colors"
-                >
+                <p className="block text-center text-sm text-muted-foreground mt-4 pt-4 border-t border-white/10">
                     + {storefronts.length - 3} more storefronts
-                </Link>
+                </p>
             )}
         </div>
     );

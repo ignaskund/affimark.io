@@ -36,7 +36,7 @@ export default function DashboardLayout({
         {
             label: 'Account',
             items: [
-                { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+                { name: 'Settings', href: '/settings', icon: Settings },
             ],
         },
     ];

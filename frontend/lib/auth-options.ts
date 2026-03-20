@@ -34,7 +34,7 @@ async function getOrCreateSupabaseUser(
       return null;
     }
 
-    const existingUser = existingUsers.users.find((u) => u.email === email);
+    const existingUser = (existingUsers.users as any[]).find((u) => u.email === email);
 
     if (existingUser) {
       console.log("[NextAuth] Found existing Supabase user:", existingUser.id);

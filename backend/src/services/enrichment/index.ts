@@ -136,11 +136,12 @@ export async function enrichDynamic(
 
   for (let i = 0; i < products.length; i++) {
     const pageData = results[i];
-    if (!pageData || pageData.error) continue;
 
-    if (pageData.rating != null) products[i].rating = pageData.rating;
-    if (pageData.reviewCount != null) products[i].reviewCount = pageData.reviewCount;
-    if (pageData.warrantyMonths != null) products[i].warrantyMonths = pageData.warrantyMonths;
+    if (pageData && !pageData.error) {
+      if (pageData.rating != null) products[i].rating = pageData.rating;
+      if (pageData.reviewCount != null) products[i].reviewCount = pageData.reviewCount;
+      if (pageData.warrantyMonths != null) products[i].warrantyMonths = pageData.warrantyMonths;
+    }
 
     products[i].enrichmentLevel = 'full';
   }

@@ -166,7 +166,66 @@ function detectAmazonDomain(url: string): string {
   return 'amazon.com';
 }
 
+const AFFILIATE_TRACKER_DOMAINS = new Set([
+  'tkqlhce.com', 'jdoqocy.com', 'dpbolvw.net', 'kqzyfj.com', 'anrdoezrs.net', // CJ Affiliate
+  'click.linksynergy.com', 'rd.linksynergy.com', // Rakuten
+  'shareasale.com', 'shrsl.com', // ShareASale
+  'go.skimresources.com', 'go.redirectingat.com', // Skimlinks
+  'impact.com', 'sjv.io', 'prf.hn', 'evyy.net', // Impact
+  'awin1.com', 'zenaps.com', // Awin
+  'avantlink.com', 'redirect.viglink.com',
+  'narrativ.com', 'bam-x.com',
+  'pepperjam.com', 'gopjn.com',
+  'tradedoubler.com', 'clkuk.tradedoubler.com',
+]);
+
+function isAffiliateTrackerUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '');
+    for (const tracker of AFFILIATE_TRACKER_DOMAINS) {
+      if (hostname === tracker || hostname.endsWith('.' + tracker)) return true;
+    }
+  } catch {}
+  return false;
+}
+
+function isNonProductPage(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '');
+    const nonProductDomains = [
+      'google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
+      'instagram.com', 'tiktok.com', 'reddit.com', 'wikipedia.org',
+      'linkedin.com', 'pinterest.com', 'github.com', 'stackoverflow.com',
+      'medium.com', 'substack.com', 'notion.so', 'figma.com',
+    ];
+    for (const domain of nonProductDomains) {
+      if (hostname === domain || hostname.endsWith('.' + domain)) return true;
+    }
+    const path = new URL(url).pathname;
+    if (path === '/' || path === '') return true;
+  } catch {}
+  return false;
+}
+
 export async function identifyProduct(url: string, env: Env): Promise<IdentifiedProduct> {
+  if (isAffiliateTrackerUrl(url)) {
+    console.log(`[MCP identify_product] Affiliate tracker URL detected: ${url}`);
+    return {
+      title: '', brand: null, category: 'General', subcategory: '',
+      price: null, currency: 'USD', keywords: [], searchQueries: [],
+      confidence: 0, source: 'ai_url',
+    };
+  }
+
+  if (isNonProductPage(url)) {
+    console.log(`[MCP identify_product] Non-product page detected: ${url}`);
+    return {
+      title: '', brand: null, category: 'General', subcategory: '',
+      price: null, currency: 'USD', keywords: [], searchQueries: [],
+      confidence: 0, source: 'ai_url',
+    };
+  }
+
   const isAmazon = /amazon\.[a-z.]+/i.test(url);
   const asinMatch = url.match(/(?:\/dp\/|\/gp\/product\/|\/ASIN\/)([A-Z0-9]{10})/i);
 
@@ -189,7 +248,41 @@ export async function identifyProduct(url: string, env: Env): Promise<Identified
     } catch (e) { console.warn('[MCP identify_product] Rainforest failed:', e); }
   }
 
-  // Strategy 2: URL slug extraction for Amazon
+  // Strategy 2: AI ASIN knowledge for Amazon (moved up — more reliable than slug extraction)
+  if (isAmazon && asinMatch && env.OPENAI_API_KEY) {
+    try {
+      const { aiComplete, extractJson } = await import('../services/ai-client');
+      const asin = asinMatch[1];
+      const amazonDomain = detectAmazonDomain(url);
+      const text = await aiComplete({
+        prompt: `What product is sold on ${amazonDomain} with ASIN ${asin}?
+
+Return JSON: {"title": "full product name", "brand": "brand name", "category": "Electronics|Fashion|Home & Garden|Beauty & Health|Sports & Outdoors", "subcategory": "specific type like 'over-ear headphones' or 'face moisturizer'", "price": estimated_price_or_null, "searchQueries": ["2-4 word product type WITHOUT brand name", "broader category query"], "confidence": 0-100}
+
+CRITICAL: searchQueries must describe the product TYPE, never include the brand. E.g. "over-ear noise cancelling headphones" not "Sony headphones". If you don't know this ASIN, set confidence to 0.`,
+        maxTokens: 250,
+        apiKey: env.OPENAI_API_KEY,
+      });
+      const parsed = extractJson(text);
+      if (parsed && parsed.confidence > 40 && parsed.title) {
+        console.log(`[MCP identify_product] AI ASIN identified: "${parsed.title}" by ${parsed.brand} (confidence: ${parsed.confidence})`);
+        return {
+          title: parsed.title,
+          brand: parsed.brand || null,
+          category: parsed.category || 'General',
+          subcategory: parsed.subcategory || '',
+          price: parsed.price || null,
+          currency: 'USD',
+          keywords: parsed.title.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2).slice(0, 10),
+          searchQueries: parsed.searchQueries || [parsed.title],
+          confidence: Math.min(parsed.confidence, 85),
+          source: 'ai_asin' as const,
+        };
+      }
+    } catch (e: any) { console.warn('[MCP identify_product] AI ASIN failed:', e?.message); }
+  }
+
+  // Strategy 2b: URL slug extraction for Amazon
   if (isAmazon && asinMatch) {
     const slugMatch = new URL(url).pathname.match(/\/([^/]{5,})\/dp\//i);
     if (slugMatch) {
@@ -344,34 +437,7 @@ If you can't identify it, set confidence to 0.`,
     } catch (e) { console.warn('[MCP identify_product] AI URL analysis failed:', e); }
   }
 
-  // Strategy 5: AI ASIN knowledge for Amazon
-  if (isAmazon && asinMatch && env.OPENAI_API_KEY) {
-    try {
-      const { aiComplete, extractJson } = await import('../services/ai-client');
-      const text = await aiComplete({
-        prompt: `What Amazon product has ASIN ${asinMatch[1]}? Return JSON: {"title": "...", "brand": "...", "category": "...", "subcategory": "...", "searchQueries": ["2-4 word product type query"], "confidence": 0-100}. If unknown, set confidence to 0.`,
-        maxTokens: 200,
-        apiKey: env.OPENAI_API_KEY,
-      });
-      const parsed = extractJson(text);
-      if (parsed && parsed.confidence > 30 && parsed.title) {
-        return {
-          title: parsed.title,
-          brand: parsed.brand || null,
-          category: parsed.category || 'General',
-          subcategory: parsed.subcategory || '',
-          price: null,
-          currency: 'USD',
-          keywords: [],
-          searchQueries: parsed.searchQueries || [parsed.title],
-          confidence: parsed.confidence,
-          source: 'ai_asin',
-        };
-      }
-    } catch (e) { console.warn('[MCP identify_product] AI ASIN failed:', e); }
-  }
-
-  // Strategy 6: Delegate to analyzeProductIntent as final fallback so both
+  // Strategy 5: Delegate to analyzeProductIntent as final fallback so both
   // identification paths share the same core AI logic and produce consistent results.
   try {
     const { analyzeProductIntent } = await import('../services/product-intent-analyzer');

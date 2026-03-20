@@ -87,7 +87,6 @@ async function runAlternativeSearchAgentInternal(
   const product = await identifyProduct(productUrl, env);
 
   if (product.confidence < 15 || !product.title) {
-    // If identification failed, try AI with URL-only
     if (env.OPENAI_API_KEY) {
       const aiProduct = await identifyProductWithAI(productUrl, env);
       if (aiProduct && aiProduct.confidence >= 30) {
@@ -102,6 +101,16 @@ async function runAlternativeSearchAgentInternal(
         searchDurationMs: Date.now() - startTime,
       };
     }
+  }
+
+  if (isNonProductIdentification(product)) {
+    console.warn(`[Agent] Non-product identification detected: "${product.title}" (${product.category})`);
+    return {
+      originalProduct: { ...product, confidence: 0 }, alternatives: [], searchIterations: [],
+      totalCandidatesEvaluated: 0,
+      agentReasoning: 'This URL doesn\'t appear to be a product page. Try pasting a direct product URL or the product name.',
+      searchDurationMs: Date.now() - startTime,
+    };
   }
 
   console.log(`[Agent] Product: "${product.title}" | Brand: ${product.brand || '?'} | Category: ${product.category} | Price: $${product.price || '?'} | Confidence: ${product.confidence}%`);
@@ -258,6 +267,21 @@ async function runAlternativeSearchAgentInternal(
   }
 
   // ── STEP 6: Final ranking & diversity ─────────────────────────────────────
+  // Price coherence filter: remove extreme outliers when original price is known
+  if (product.price && product.price > 0) {
+    const priceFloor = product.price * 0.15;
+    const priceCeil = product.price * 5.0;
+    const before = allScoredCandidates.length;
+    allScoredCandidates = allScoredCandidates.filter(c => {
+      if (!c.price || c.price <= 0) return true;
+      return c.price >= priceFloor && c.price <= priceCeil;
+    });
+    const removed = before - allScoredCandidates.length;
+    if (removed > 0) {
+      console.log(`[Agent] Price coherence: removed ${removed} outliers outside ${priceFloor.toFixed(0)}-${priceCeil.toFixed(0)} range`);
+    }
+  }
+
   allScoredCandidates.sort((a, b) => b.combinedScore - a.combinedScore);
 
   const deduped = deduplicateByName(allScoredCandidates);
@@ -641,21 +665,26 @@ function enforceDiversity(candidates: ScoredAlternative[], targetSize: number): 
   for (const c of candidates) {
     if (result.length >= targetSize) break;
 
-    const merchant = c.merchant.toLowerCase();
-    const brand = c.brand.toLowerCase();
+    const merchant = c.merchant.toLowerCase().trim();
+    const brand = c.brand.toLowerCase().trim();
 
-    if ((merchantCount.get(merchant) || 0) >= 2) continue;
-    if ((brandCount.get(brand) || 0) >= 2) continue;
+    if (merchant && (merchantCount.get(merchant) || 0) >= 2) continue;
+    if (brand && (brandCount.get(brand) || 0) >= 1) continue;
 
     result.push(c);
-    merchantCount.set(merchant, (merchantCount.get(merchant) || 0) + 1);
-    brandCount.set(brand, (brandCount.get(brand) || 0) + 1);
+    if (merchant) merchantCount.set(merchant, (merchantCount.get(merchant) || 0) + 1);
+    if (brand) brandCount.set(brand, (brandCount.get(brand) || 0) + 1);
   }
 
   if (result.length < targetSize) {
     for (const c of candidates) {
       if (result.length >= targetSize) break;
-      if (!result.includes(c)) result.push(c);
+      if (!result.includes(c)) {
+        const brand = c.brand.toLowerCase().trim();
+        if (brand && (brandCount.get(brand) || 0) >= 2) continue;
+        result.push(c);
+        if (brand) brandCount.set(brand, (brandCount.get(brand) || 0) + 1);
+      }
     }
   }
 
@@ -705,6 +734,28 @@ function categoriesOverlap(candidateCategory: string, originalCategory: string):
     const aInB = groupB.some(kw => a.includes(kw));
     const bInA = groupA.some(kw => b.includes(kw));
     if ((aInA && bInB) || (aInB && bInA)) return true;
+  }
+
+  return false;
+}
+
+function isNonProductIdentification(product: IdentifiedProduct): boolean {
+  const title = product.title.toLowerCase();
+  const nonProductPatterns = [
+    /^google\b/, /^facebook\b/, /^youtube\b/, /^twitter\b/, /^instagram\b/,
+    /^tiktok\b/, /^reddit\b/, /^wikipedia\b/, /^linkedin\b/, /\bsearch engine\b/,
+    /\bsocial media\b/, /\bsocial network\b/, /\bweb browser\b/, /\boperating system\b/,
+    /\bnews site\b/, /\bemail service\b/, /\bstreaming service\b/,
+    /^cross[- ]?network\b/, /^affiliate\b/, /^tracking\b/, /^redirect\b/,
+  ];
+  if (nonProductPatterns.some(p => p.test(title))) return true;
+
+  const nonProductCategories = ['search engine', 'social media', 'web service', 'software platform'];
+  if (nonProductCategories.some(c => product.category.toLowerCase().includes(c))) return true;
+
+  if (product.source === 'scrape' && product.confidence >= 60) {
+    const suspiciousPatterns = [/^welcome\b/i, /^home\s*$/i, /^sign\s*(in|up)/i, /^about\b/i];
+    if (suspiciousPatterns.some(p => p.test(product.title))) return true;
   }
 
   return false;
