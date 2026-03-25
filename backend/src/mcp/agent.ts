@@ -758,6 +758,10 @@ function isNonProductIdentification(product: IdentifiedProduct): boolean {
     /\bsocial media\b/, /\bsocial network\b/, /\bweb browser\b/, /\boperating system\b/,
     /\bnews site\b/, /\bemail service\b/, /\bstreaming service\b/,
     /^cross[- ]?network\b/, /^affiliate\b/, /^tracking\b/, /^redirect\b/,
+    /^cj\s*affiliate/i, /^commission\s*junction/i, /^rakuten\s*(advertising|marketing)?$/i,
+    /^shareasale/i, /^impact\s*(radius)?$/i, /^awin\b/i, /^partnerize/i, /^pepperjam/i,
+    /^linksynergy/i, /^skimlinks/i, /^tradedoubler/i, /^webgains/i, /^flexoffers/i,
+    /^affiliate\s*(network|program|marketing|platform)/i,
   ];
   if (nonProductPatterns.some(p => p.test(title))) return true;
 

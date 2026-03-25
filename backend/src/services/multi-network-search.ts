@@ -379,11 +379,22 @@ export async function searchAllNetworks(
     // Phase A products (from user's connected networks) get a small bonus to
     // surface them above equivalent broad-search alternatives.
     const phaseABonus = product._preferredNetwork ? 5 : 0;
+
+    // Priority #1 boost: amplify the user's top priority signal in final ranking
+    let priority1Bonus = 0;
+    if (productPriorityKpis.length > 0) {
+      const topKpi = productPriorityKpis[0];
+      if (topKpi.score >= 70) {
+        priority1Bonus = Math.round((topKpi.score - 50) * 0.08);
+      }
+    }
+
     const combinedScore = Math.min(100, Math.round(
       semanticScore * 0.35 +
       matchScore * 0.35 +
       outcomeFeasibilityScore.overall * 0.30 +
-      phaseABonus
+      phaseABonus +
+      priority1Bonus
     ));
 
     // D) Generate structured reason codes
