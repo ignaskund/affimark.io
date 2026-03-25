@@ -144,11 +144,22 @@ const qualitySpec: PriorityKpiSpec = {
       emerging: 45,     // Less predictable quality
       niche: 45,        // Specialised but unknown quality track record
     };
+    // Tier-aware floor: after page fetch, cap unknown-rating products but
+    // use a higher floor for prestigious brands (they reliably make good products
+    // even if the specific merchant page lacks JSON-LD ratings).
+    const BRAND_TIER_CHECKED_FLOOR: Record<string, number> = {
+      global: 65,
+      major: 60,
+      established: 50,
+      emerging: 40,
+      niche: 35,
+    };
     const isChecked = p.enrichmentLevel === 'full';
     if (p.brandRecognitionTier && p.brandRecognitionTier in BRAND_TIER_QUALITY_PROXY) {
       const proxyScore = BRAND_TIER_QUALITY_PROXY[p.brandRecognitionTier];
+      const checkedFloor = BRAND_TIER_CHECKED_FLOOR[p.brandRecognitionTier] ?? 40;
       return {
-        score: isChecked ? Math.min(proxyScore, 40) : proxyScore, // if we fetched the page & found nothing, cap it
+        score: isChecked ? checkedFloor : proxyScore,
         confidence: 'low',
         reason: `Quality estimated from brand tier (${p.brandRecognitionTier} — ${p.brand || 'brand'}) — no product reviews available yet`,
         evidenceLabel: `${p.brand || 'Brand'}: ${p.brandRecognitionTier} tier proxy`,

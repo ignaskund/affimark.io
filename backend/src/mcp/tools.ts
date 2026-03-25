@@ -304,6 +304,29 @@ CRITICAL: searchQueries must describe the product TYPE, never include the brand.
     if (slugMatch) {
       const title = slugMatch[1].split('-').filter(w => w.length > 1).join(' ');
       if (title.length > 10) {
+        // Enrich slug with AI to extract subcategory, brand, and category
+        if (env?.OPENAI_API_KEY) {
+          try {
+            const { aiComplete, extractJson } = await import('../services/ai-client');
+            const amazonDomain = detectAmazonDomain(url);
+            const aiResult = await aiComplete({
+              prompt: `This product slug was extracted from ${amazonDomain}: "${title}"
+Identify the product type, brand, and category.
+Return ONLY JSON: {"brand": "brand name or null", "product": "product name without brand", "category": "Electronics|Fashion|Home & Garden|Beauty & Health|Sports & Outdoors", "subcategory": "specific product type like 'over-ear noise cancelling headphones' or 'moisturizing face cream'"}`,
+              maxTokens: 100, temperature: 0, apiKey: env.OPENAI_API_KEY,
+            });
+            const parsed = extractJson(aiResult);
+            if (parsed) {
+              console.log(`[MCP identify_product] AI slug enrichment: brand="${parsed.brand}", sub="${parsed.subcategory}", cat="${parsed.category}"`);
+              const enrichedProduct = buildIdentifiedProduct(
+                parsed.product || title, parsed.brand || null,
+                parsed.category || null, null, 'USD', 'url_slug'
+              );
+              if (parsed.subcategory) enrichedProduct.subcategory = parsed.subcategory;
+              return enrichedProduct;
+            }
+          } catch (e: any) { console.warn('[MCP identify_product] AI slug enrichment failed:', e?.message); }
+        }
         return buildIdentifiedProduct(title, null, null, null, 'USD', 'url_slug');
       }
     }
@@ -378,11 +401,48 @@ Note: Sports supplements, vitamins, and nutrition products should be "Health & N
     clearTimeout(timer);
 
     if (pageRes.ok) {
+      const finalUrl = pageRes.url || cleanUrl;
       const html = await pageRes.text();
       const title = extractTitleFromHtml(html);
       const price = extractPriceFromHtml(html);
+
+      // Detect affiliate network landing pages even when no redirect occurred
+      if (title && isGarbageTitle(title)) {
+        console.log(`[MCP identify_product] Scraped title is affiliate network page: "${title}"`);
+        return {
+          title: '', brand: null, category: 'General', subcategory: '',
+          price: null, currency: 'USD', keywords: [], searchQueries: [],
+          confidence: 0, source: 'scrape' as const,
+        };
+      }
+
+      // Also check if final URL landed on a known affiliate network site
+      if (finalUrl !== cleanUrl) {
+        try {
+          const finalHostname = new URL(finalUrl).hostname.replace(/^www\./, '');
+          const AFFILIATE_NETWORK_SITES = [
+            'cj.com', 'commission-junction.com', 'rakuten.com', 'shareasale.com',
+            'impact.com', 'awin.com', 'partnerize.com', 'pepperjam.com',
+            'skimlinks.com', 'tradedoubler.com',
+          ];
+          if (AFFILIATE_NETWORK_SITES.some(d => finalHostname === d || finalHostname.endsWith('.' + d))) {
+            console.log(`[MCP identify_product] Redirected to affiliate network site: ${finalHostname}`);
+            return {
+              title: '', brand: null, category: 'General', subcategory: '',
+              price: null, currency: 'USD', keywords: [], searchQueries: [],
+              confidence: 0, source: 'scrape' as const,
+            };
+          }
+        } catch {}
+      }
+
       if (title && title.length > 10) {
-        return buildIdentifiedProduct(title, null, null, price, 'USD', 'scrape');
+        // Apply domain-based brand/category hints for DTC sites
+        const domainHints = getDomainHints(cleanUrl);
+        const brand = domainHints?.brand || null;
+        const category = domainHints?.category || null;
+        const sanitizedPrice = sanitizePrice(price, title, category || inferCategory(title));
+        return buildIdentifiedProduct(title, brand, category, sanitizedPrice, 'USD', 'scrape');
       }
       scrapeFailed = true;
     } else {
@@ -482,6 +542,100 @@ If you can't identify it, set confidence to 0.`,
     price: null, currency: 'USD', keywords: [], searchQueries: [],
     confidence: 0, source: 'ai_url',
   };
+}
+
+// ─── Domain → Brand/Category Hints for DTC sites ────────────────────────────
+// When scraping a DTC (direct-to-consumer) site, the HTML title often doesn't
+// include the brand name. This map provides brand + category from the domain.
+
+const DOMAIN_HINTS: Record<string, { brand: string; category: string }> = {
+  'glossier.com':       { brand: 'Glossier',       category: 'Beauty & Health' },
+  'tatcha.com':         { brand: 'Tatcha',         category: 'Beauty & Health' },
+  'cerave.com':         { brand: 'CeraVe',         category: 'Beauty & Health' },
+  'theordinary.com':    { brand: 'The Ordinary',   category: 'Beauty & Health' },
+  'ffrfrench.com':      { brand: 'French',         category: 'Fashion' },
+  'olaplex.com':        { brand: 'Olaplex',        category: 'Beauty & Health' },
+  'moroccanoil.com':    { brand: 'Moroccanoil',     category: 'Beauty & Health' },
+  'dyson.com':          { brand: 'Dyson',          category: 'Electronics' },
+  'bose.com':           { brand: 'Bose',           category: 'Electronics' },
+  'sonos.com':          { brand: 'Sonos',          category: 'Electronics' },
+  'allbirds.com':       { brand: 'Allbirds',       category: 'Fashion' },
+  'lululemon.com':      { brand: 'Lululemon',      category: 'Fashion' },
+  'patagonia.com':      { brand: 'Patagonia',      category: 'Fashion' },
+  'nike.com':           { brand: 'Nike',           category: 'Fashion' },
+  'adidas.com':         { brand: 'Adidas',         category: 'Fashion' },
+  'vegamour.com':       { brand: 'Vegamour',       category: 'Beauty & Health' },
+  'supergoop.com':      { brand: 'Supergoop',      category: 'Beauty & Health' },
+  'drunk-elephant.com': { brand: 'Drunk Elephant', category: 'Beauty & Health' },
+  'glow-recipe.com':    { brand: 'Glow Recipe',    category: 'Beauty & Health' },
+  'rare-beauty.com':    { brand: 'Rare Beauty',    category: 'Beauty & Health' },
+  'fentybeauty.com':    { brand: 'Fenty Beauty',   category: 'Beauty & Health' },
+  'charlottetilbury.com': { brand: 'Charlotte Tilbury', category: 'Beauty & Health' },
+  'kitchenaid.com':     { brand: 'KitchenAid',     category: 'Home & Garden' },
+  'yeti.com':           { brand: 'YETI',           category: 'Home & Garden' },
+  'hydroflask.com':     { brand: 'Hydro Flask',    category: 'Home & Garden' },
+  'stanley1913.com':    { brand: 'Stanley',        category: 'Home & Garden' },
+};
+
+function getDomainHints(url: string): { brand: string; category: string } | null {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '');
+    return DOMAIN_HINTS[hostname] || null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Price Sanitization ──────────────────────────────────────────────────────
+// Scraped prices from structured data can be wildly wrong (e.g. Glossier returns
+// $1900 for a $14 lip balm because JSON-LD has a schema variant price). Apply
+// category-based caps to reject obviously-wrong prices.
+
+const CATEGORY_PRICE_CAPS: Record<string, number> = {
+  'beauty': 500,
+  'skincare': 500,
+  'hair': 400,
+  'lip': 200,
+  'balm': 200,
+  'nail': 200,
+  'makeup': 500,
+  'cosmetics': 500,
+  'personal care': 300,
+  'fragrance': 800,
+  'health': 500,
+  'fashion': 5000,
+  'clothing': 3000,
+  'shoes': 3000,
+  'accessories': 5000,
+  'home': 10000,
+  'kitchen': 5000,
+  'garden': 5000,
+  'toys': 1000,
+  'pet': 500,
+  'food': 500,
+  'supplement': 300,
+  'nutrition': 300,
+};
+
+function sanitizePrice(price: number | null, title: string, category: string): number | null {
+  if (price == null || price <= 0) return price;
+
+  // Universal sanity cap: individual consumer products rarely exceed $10,000
+  if (price > 10000) {
+    console.log(`[MCP sanitizePrice] Rejected $${price} for "${title}" — exceeds universal cap`);
+    return null;
+  }
+
+  // Check against category-specific caps using both category and title keywords
+  const searchText = `${category} ${title}`.toLowerCase();
+  for (const [keyword, cap] of Object.entries(CATEGORY_PRICE_CAPS)) {
+    if (searchText.includes(keyword) && price > cap) {
+      console.log(`[MCP sanitizePrice] Rejected $${price} for "${title}" — exceeds ${keyword} cap of $${cap}`);
+      return null;
+    }
+  }
+
+  return price;
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -591,7 +745,12 @@ function extractPriceFromHtml(html: string): number | null {
 function isGarbageTitle(title: string): boolean {
   const lower = title.toLowerCase().trim();
   return [/^amazon/, /^sign\s*in/, /^page\s*not/, /^404/, /^error/, /^robot\s*check/,
-    /^captcha/, /^sorry/, /^just\s*a\s*moment/, /^online\s*shopping/]
+    /^captcha/, /^sorry/, /^just\s*a\s*moment/, /^online\s*shopping/,
+    /^cj\s*affiliate/i, /^commission\s*junction/i, /^rakuten\s*(advertising|marketing)?$/i,
+    /^shareasale/i, /^impact\s*(radius)?$/i, /^awin/i, /^partnerize/i, /^pepperjam/i,
+    /^linksynergy/i, /^skimlinks/i, /^tradedoubler/i, /^webgains/i, /^flexoffers/i,
+    /^affiliate\s*(network|program|marketing|platform)/i,
+  ]
     .some(rx => rx.test(lower));
 }
 
@@ -742,7 +901,19 @@ export async function scoreCandidate(
 
   const baseScore = semanticScore * semWeight + priorityWeightedScore * priWeight + feasibility.overall * feaWeight;
   const stockBonus = candidate.inStock === true ? 8 : candidate.inStock === false ? -5 : 0;
-  const combinedScore = Math.min(100, Math.max(0, Math.round(baseScore + stockBonus)));
+
+  // Priority #1 boost: if the user's top priority KPI is strong (>=70), add a
+  // bonus proportional to how strong it is. This ensures that a Caudalie with
+  // q=97 ranks above a TOZO with q=40 when quality is the user's #1 priority.
+  let priority1Bonus = 0;
+  if (productKpis.length > 0) {
+    const topKpi = productKpis[0];
+    if (topKpi.score >= 70) {
+      priority1Bonus = Math.round((topKpi.score - 50) * 0.08);
+    }
+  }
+
+  const combinedScore = Math.min(100, Math.max(0, Math.round(baseScore + stockBonus + priority1Bonus)));
 
   const priceDiff = originalProduct.price && candidate.price
     ? ((candidate.price - originalProduct.price) / originalProduct.price * 100).toFixed(0) + '%'
