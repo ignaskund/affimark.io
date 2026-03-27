@@ -374,10 +374,6 @@ export async function searchAllNetworks(
     );
 
     // C) Combined score: 35% semantic + 35% match + 30% outcome feasibility
-    // Semantic similarity is the primary signal — it catches products that are
-    // genuinely similar even when keyword overlap is low.
-    // Phase A products (from user's connected networks) get a small bonus to
-    // surface them above equivalent broad-search alternatives.
     const phaseABonus = product._preferredNetwork ? 5 : 0;
 
     // Priority #1 boost: amplify the user's top priority signal in final ranking
@@ -389,12 +385,24 @@ export async function searchAllNetworks(
       }
     }
 
+    // Commission uplift bonus: when the user's top brand priority is commission,
+    // products with significantly higher commission rates get a dedicated boost.
+    // This ensures the value prop ("find better commission") is visible in ranking.
+    let commissionUpliftBonus = 0;
+    const topBrandPriority = userProfile.brandPriorities[0];
+    if (topBrandPriority?.id === 'commission' && signals.commissionRate != null) {
+      if (signals.commissionRate >= 10) commissionUpliftBonus = 6;
+      else if (signals.commissionRate >= 7) commissionUpliftBonus = 4;
+      else if (signals.commissionRate >= 5) commissionUpliftBonus = 2;
+    }
+
     const combinedScore = Math.min(100, Math.round(
       semanticScore * 0.35 +
       matchScore * 0.35 +
       outcomeFeasibilityScore.overall * 0.30 +
       phaseABonus +
-      priority1Bonus
+      priority1Bonus +
+      commissionUpliftBonus
     ));
 
     // D) Generate structured reason codes
