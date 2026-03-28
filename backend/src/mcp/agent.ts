@@ -241,11 +241,35 @@ async function runAlternativeSearchAgentInternal(
     );
 
     // Hard category gate: reject products from completely wrong categories
-    // A comforter must never appear in a hair spray search. A Barbie doll must never appear for a pullover.
     const categoryPassed = scored.filter(s => {
       if (product.category === 'General' || !product.category) return true;
       if (!s.category || s.category === 'General') return true;
-      return categoriesOverlap(s.category, product.category);
+      if (!categoriesOverlap(s.category, product.category)) return false;
+
+      // Subcategory precision gate: when we know the specific product type
+      // (e.g. "over-ear headphones"), reject accessories and adjacent items.
+      if (product.subcategory && product.subcategory.length > 3) {
+        const subLower = product.subcategory.toLowerCase();
+        const candidateName = (s.name || '').toLowerCase();
+        const candidateCategory = (s.category || '').toLowerCase();
+        const candidateText = `${candidateName} ${candidateCategory}`;
+
+        const ACCESSORY_PATTERNS = [
+          /\b(case|cover|stand|mount|holder|cable|adapter|charger|protector|sleeve|pouch|strap|cushion|pad|replacement|repair|cleaning)\b/,
+          /\b(ear\s*(?:pad|cushion|tip|bud\s*cover))\b/,
+        ];
+        const isAccessory = ACCESSORY_PATTERNS.some(p => p.test(candidateName));
+
+        if (isAccessory) {
+          const subcategoryTokens = subLower.split(/\s+/).filter(w => w.length > 3);
+          const hasSubcategoryMatch = subcategoryTokens.some(token => candidateText.includes(token));
+          if (!hasSubcategoryMatch) {
+            console.log(`[Agent] Subcategory gate rejected accessory: "${s.name}" for subcategory "${product.subcategory}"`);
+            return false;
+          }
+        }
+      }
+      return true;
     });
 
     const passing = categoryPassed.filter(s => s.combinedScore >= COMBINED_SCORE_FLOOR);
@@ -277,10 +301,14 @@ async function runAlternativeSearchAgentInternal(
   }
 
   // ── STEP 6: Final ranking & diversity ─────────────────────────────────────
-  // Price coherence filter: remove extreme outliers when original price is known
-  if (product.price && product.price > 0) {
-    const priceFloor = product.price * 0.15;
-    const priceCeil = product.price * 5.0;
+  // Price coherence filter: remove extreme outliers
+  const priceAnchor = (product.price && product.price > 0)
+    ? product.price
+    : getCategoryMedianPrice(product.category);
+
+  if (priceAnchor > 0) {
+    const priceFloor = priceAnchor * 0.10;
+    const priceCeil = priceAnchor * 5.0;
     const before = allScoredCandidates.length;
     allScoredCandidates = allScoredCandidates.filter(c => {
       if (!c.price || c.price <= 0) return true;
@@ -288,7 +316,8 @@ async function runAlternativeSearchAgentInternal(
     });
     const removed = before - allScoredCandidates.length;
     if (removed > 0) {
-      console.log(`[Agent] Price coherence: removed ${removed} outliers outside ${priceFloor.toFixed(0)}-${priceCeil.toFixed(0)} range`);
+      const anchorSource = (product.price && product.price > 0) ? 'original' : 'category median';
+      console.log(`[Agent] Price coherence (${anchorSource} $${priceAnchor.toFixed(0)}): removed ${removed} outliers outside ${priceFloor.toFixed(0)}-${priceCeil.toFixed(0)} range`);
     }
   }
 
@@ -561,13 +590,19 @@ async function generateSearchStrategies(
     }
   }
 
-  // Strategy 3: Product type + price range anchored to original
-  if (product.price && productTypeQueries.length > 0) {
+  // Strategy 3: Product type + price range anchored to original or creator's avg
+  const effectivePrice = (product.price && product.price > 0)
+    ? product.price
+    : (profile.storefrontContext.avgPricePoint > 0
+        ? profile.storefrontContext.avgPricePoint
+        : getCategoryMedianPrice(product.category));
+
+  if (effectivePrice > 0 && productTypeQueries.length > 0) {
     strategies.push({
       name: 'price_anchored',
       query: productTypeQueries[0],
-      priceMin: Math.round(product.price * 0.3 * 100),
-      priceMax: Math.round(product.price * 3.0 * 100),
+      priceMin: Math.round(effectivePrice * 0.3 * 100),
+      priceMax: Math.round(effectivePrice * 3.0 * 100),
     });
   }
 
@@ -774,6 +809,37 @@ function isNonProductIdentification(product: IdentifiedProduct): boolean {
   }
 
   return false;
+}
+
+/**
+ * Category-based median price estimates (USD) for when the original product
+ * has no price data (Amazon blocks scrape, slug has no price, etc.).
+ * Based on typical affiliate product price ranges.
+ */
+function getCategoryMedianPrice(category: string): number {
+  const CATEGORY_MEDIAN_PRICES: Record<string, number> = {
+    'Electronics': 150,
+    'Beauty & Health': 30,
+    'Fashion': 60,
+    'Home & Garden': 50,
+    'Sports & Outdoors': 80,
+    'Health & Nutrition': 35,
+    'Sports Nutrition': 40,
+    'Toys & Games': 30,
+    'Books & Media': 15,
+    'Food & Beverage': 20,
+    'Pet Supplies': 25,
+    'Automotive': 40,
+  };
+  const cat = (category || '').trim();
+  if (CATEGORY_MEDIAN_PRICES[cat]) return CATEGORY_MEDIAN_PRICES[cat];
+  const lower = cat.toLowerCase();
+  for (const [key, price] of Object.entries(CATEGORY_MEDIAN_PRICES)) {
+    if (lower.includes(key.toLowerCase()) || key.toLowerCase().includes(lower)) {
+      return price;
+    }
+  }
+  return 0;
 }
 
 function buildAgentReasoning(

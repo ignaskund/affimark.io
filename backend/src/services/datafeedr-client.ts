@@ -476,6 +476,141 @@ export async function getMerchantInfo(
 }
 
 /**
+ * Extract the actual product brand from a Datafeedr product name.
+ *
+ * Datafeedr's `brand` field is often the merchant/seller, not the product
+ * manufacturer. The real brand is typically the first segment of `name`:
+ *   "The Body Shop — Moisture Cream"  → "The Body Shop"
+ *   "Bose QuietComfort 45 Headphones" → "Bose"
+ *   "Avene Cleanance Gel"             → "Avene"
+ *
+ * Uses a combination of delimiter splitting and known-brand matching.
+ */
+function extractBrandFromName(name: string, datafeedrBrand?: string, merchant?: string): string {
+  if (!name) return datafeedrBrand || merchant || '';
+
+  // If Datafeedr `brand` is different from `merchant` and looks like a real
+  // brand (not a store name), trust it.
+  if (datafeedrBrand && merchant && datafeedrBrand.toLowerCase() !== merchant.toLowerCase()) {
+    const brandLower = datafeedrBrand.toLowerCase();
+    if (!KNOWN_MARKETPLACE_MERCHANTS.has(brandLower)) {
+      return datafeedrBrand;
+    }
+  }
+
+  // Strategy 1: Split on common delimiters between brand and product name
+  const delimiterPatterns = [
+    /\s+[-–—]\s+/,          // "Brand — Product" or "Brand - Product"
+    /\s+by\s+/i,            // "Product by Brand" (reversed)
+    /\s*[|]\s*/,            // "Brand | Product"
+  ];
+  for (const pattern of delimiterPatterns) {
+    const parts = name.split(pattern);
+    if (parts.length >= 2 && parts[0].length >= 2 && parts[0].length <= 40) {
+      const candidate = parts[0].trim();
+      if (candidate.split(/\s+/).length <= 5 && !isGenericProductWord(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  // Strategy 2: Match known brands from the brand-intelligence database
+  const nameLower = name.toLowerCase();
+  for (const brand of KNOWN_PRODUCT_BRANDS) {
+    if (nameLower.startsWith(brand.toLowerCase() + ' ') ||
+        nameLower.startsWith(brand.toLowerCase() + "'") ||
+        nameLower === brand.toLowerCase()) {
+      return brand;
+    }
+  }
+
+  // Strategy 3: Take first 1-2 words if they look like a brand (capitalized,
+  // not generic, not purely numeric)
+  const words = name.split(/\s+/);
+  if (words.length >= 2) {
+    const first = words[0];
+    if (first.length >= 2 && /^[A-Z]/.test(first) && !isGenericProductWord(first)) {
+      if (words.length >= 3 && /^[A-Z]/.test(words[1]) && !isGenericProductWord(words[1]) && words[1].length >= 2) {
+        const twoWord = `${first} ${words[1]}`;
+        if (twoWord.length <= 25) return twoWord;
+      }
+      return first;
+    }
+  }
+
+  return datafeedrBrand || merchant || '';
+}
+
+const KNOWN_MARKETPLACE_MERCHANTS = new Set([
+  'unineed', 'dokodemo', 'silicon2', 'strawberrynet', 'notino',
+  'parfumdreams', 'cocopanda', 'kosmetik4less', 'parfumgroup',
+  'skinstore', 'dermstore', 'beautylish', 'spacenk', 'cultbeauty',
+  'allbeauty', 'beautyexpert', 'escentual', 'fragrancedirect',
+  'amazon', 'ebay', 'walmart', 'target', 'temu', 'wish', 'aliexpress',
+]);
+
+const KNOWN_PRODUCT_BRANDS = [
+  'The Body Shop', 'The Ordinary', 'La Roche-Posay', 'Paula\'s Choice',
+  'First Aid Beauty', 'Drunk Elephant', 'Glow Recipe', 'Rare Beauty',
+  'Fenty Beauty', 'Charlotte Tilbury', 'Pat McGrath', 'Huda Beauty',
+  'Too Faced', 'Urban Decay', 'Benefit', 'Bobbi Brown', 'Bare Minerals',
+  'Estee Lauder', 'Clinique', 'Origins', 'Kiehl\'s', 'Fresh',
+  'SK-II', 'Shiseido', 'Tatcha', 'Supergoop', 'Sunday Riley',
+  'Kate Somerville', 'Dr. Dennis Gross', 'Peter Thomas Roth',
+  'Ole Henriksen', 'Youth To The People', 'Herbivore',
+  'Avene', 'Bioderma', 'Vichy', 'La Mer', 'Clarins', 'Lancome',
+  'Givenchy', 'YSL', 'Dior', 'Chanel', 'Tom Ford', 'Jo Malone',
+  'Byredo', 'Le Labo', 'Diptyque', 'Maison Margiela',
+  'CeraVe', 'Neutrogena', 'Olay', 'Nivea', 'Dove', 'Aveeno',
+  'Cetaphil', 'Eucerin', 'Simple', 'Garnier', 'L\'Oreal',
+  'Maybelline', 'NYX', 'Revlon', 'Covergirl', 'Rimmel',
+  'MAC', 'NARS', 'Smashbox', 'Morphe', 'Colourpop',
+  'Olaplex', 'Moroccanoil', 'Redken', 'Kerastase', 'Aveda',
+  'Bumble and bumble', 'Living Proof', 'Briogeo', 'Ouai',
+  'Vegamour', 'Kristin Ess', 'Color Wow', 'Amika',
+  'Sony', 'Bose', 'Sennheiser', 'JBL', 'Audio-Technica',
+  'Beyerdynamic', 'Bang & Olufsen', 'Marshall', 'Sonos',
+  'Anker', 'Belkin', 'Logitech', 'Razer', 'Corsair',
+  'Apple', 'Samsung', 'LG', 'Philips', 'Panasonic', 'Canon', 'Nikon',
+  'Dyson', 'KitchenAid', 'Vitamix', 'Nespresso', 'Smeg', 'Le Creuset',
+  'Nike', 'Adidas', 'Puma', 'New Balance', 'Under Armour',
+  'Lululemon', 'Alo', 'Vuori', 'On Running', 'Hoka', 'Asics',
+  'The North Face', 'Patagonia', 'Columbia', 'Arc\'teryx',
+  'Ralph Lauren', 'Tommy Hilfiger', 'Calvin Klein', 'Hugo Boss',
+  'Lacoste', 'Burberry', 'Gucci', 'Prada', 'Versace',
+  'Michael Kors', 'Coach', 'Kate Spade', 'Tory Burch',
+  'Zara', 'H&M', 'Mango', 'COS', 'ASOS', 'Uniqlo',
+  'Muji', 'IKEA', 'West Elm', 'Anthropologie',
+  'Collistar', 'Etude', 'Innisfree', 'Laneige', 'Sulwhasoo',
+  'Missha', 'COSRX', 'Heimish', 'Purito', 'Some By Mi',
+  'Kracie', 'Shiseido', 'DHC', 'Hada Labo', 'Canmake',
+  'Weleda', 'Dr. Hauschka', 'REN', 'Caudalie', 'Nuxe',
+  'Sisley', 'Guerlain', 'Chantecaille', 'Augustinus Bader',
+  'Aesop', 'Byoma', 'Glossier', 'Ilia', 'Merit', 'Tower 28',
+  'Kosas', 'Saie', 'Jones Road', 'Rose Inc', 'Westman Atelier',
+  'YETI', 'Stanley', 'Hydro Flask', 'Ember', 'Away', 'Rimowa',
+  'GoPro', 'Garmin', 'Fitbit', 'Osprey', 'Mammut', 'Salomon',
+];
+
+function isGenericProductWord(word: string): boolean {
+  const GENERIC = new Set([
+    'the', 'a', 'an', 'new', 'best', 'top', 'great', 'premium', 'luxury',
+    'professional', 'advanced', 'original', 'classic', 'natural', 'organic',
+    'set', 'pack', 'kit', 'bundle', 'gift', 'mini', 'travel', 'full',
+    'for', 'with', 'and', 'by', 'in', 'of', 'to', 'from',
+    'women', 'men', 'womens', 'mens', 'ladies', 'unisex', 'kids',
+    'face', 'body', 'skin', 'hair', 'hand', 'eye', 'lip',
+    'moisturizing', 'hydrating', 'nourishing', 'soothing', 'anti-aging',
+    'wireless', 'bluetooth', 'portable', 'rechargeable', 'digital', 'smart',
+    'extra', 'super', 'ultra', 'pro', 'max', 'plus', 'lite',
+    'large', 'small', 'medium', 'xl', 'xxl', 'regular',
+    'black', 'white', 'red', 'blue', 'pink', 'gold', 'silver',
+    'free', 'sale', 'limited', 'exclusive', 'special',
+  ]);
+  return GENERIC.has(word.toLowerCase());
+}
+
+/**
  * Convert Datafeedr product to AffiMark AlternativeProduct format
  */
 export function convertToAlternativeProduct(product: DatafeedrProduct): any {
@@ -494,12 +629,14 @@ export function convertToAlternativeProduct(product: DatafeedrProduct): any {
     product.currency
   );
 
+  const extractedBrand = extractBrandFromName(product.name, product.brand, product.merchant);
+
   return {
     id: product._id || String(product._id),
     url: product.url,
     directUrl: product.direct_url,
     name: product.name,
-    brand: product.brand || product.merchant,
+    brand: extractedBrand,
     category: product.category || 'General',
     imageUrl: product.image,
     price: normalizedPrice ?? 0,
@@ -510,7 +647,7 @@ export function convertToAlternativeProduct(product: DatafeedrProduct): any {
     merchant: product.merchant,
     inStock: product.availability === 'out of stock' || product.availability === 'out-of-stock'
       ? false
-      : true,  // Treat empty/unknown availability as likely in-stock (most merchants don't set this field)
+      : true,
     lastUpdated,
   };
 }

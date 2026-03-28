@@ -73,6 +73,35 @@ const ESTABLISHED_BRANDS = new Set([
   'away', 'rimowa', 'samsonite', 'tumi',
   'sonos', 'marshall', 'audio-technica', 'beyerdynamic',
   'ember', 'yeti', 'stanley', 'hydro flask',
+  // Beauty — DTC brands & K-beauty/J-beauty that are established in their categories
+  'first aid beauty', 'byoma', 'tower 28', 'kosas', 'saie', 'jones road',
+  'rose inc', 'westman atelier', 'sunday riley', 'kate somerville',
+  'dr. dennis gross', 'peter thomas roth', 'ole henriksen',
+  'youth to the people', 'herbivore', 'farmacy', 'summer fridays',
+  'laneige', 'sulwhasoo', 'innisfree', 'cosrx', 'missha', 'etude',
+  'some by mi', 'purito', 'heimish', 'beauty of joseon', 'round lab',
+  'shiseido', 'sk-ii', 'dhc', 'hada labo', 'canmake', 'kate tokyo',
+  'caudalie', 'nuxe', 'bioderma', 'avene', 'embryolisse', 'la mer',
+  'sisley', 'guerlain', 'chantecaille', 'augustinus bader',
+  'collistar', 'filorga', 'erborian', 'caudalie',
+  'kristin ess', 'color wow', 'amika', 'ouai', 'briogeo',
+  'bumble and bumble', 'living proof', 'verb', 'dae',
+  'vegamour', 'k18', 'bondi boost', 'mielle', 'pattern',
+  // Fashion — established DTC and emerging luxury
+  'skims', 'alo', 'reformation', 'everlane', 'madewell',
+  'j.crew', 'banana republic', 'anthropologie', 'free people',
+  'tory burch', 'kate spade', 'stuart weitzman', 'jimmy choo',
+  'bottega veneta', 'celine', 'loewe', 'valentino', 'moncler',
+  'acne studios', 'ganni', 'staud', 'nanushka', 'jacquemus',
+  'anine bing', 'toteme', 'agolde', 'citizens of humanity',
+  'frame', 'mother', 'paige', '7 for all mankind',
+  // Home / lifestyle
+  'le creuset', 'staub', 'lodge', 'all-clad', 'cuisinart',
+  'breville', 'fellow', 'chemex', 'aeropress',
+  'casper', 'brooklinen', 'parachute', 'buffy',
+  // Tech accessories
+  'peak design', 'moment', 'nomad', 'moft', 'dbrand',
+  'keychron', 'nuphy', 'tozo', 'jabra', 'shokz',
 ]);
 
 // ─── Sustainability Certifications ──────────────────────────────────
